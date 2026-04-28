@@ -1,0 +1,347 @@
+{
+  "info": {
+    "name": "Host App Workflow APIs - Sequence Pack",
+    "description": "Postman collection with ordered API sequences for system/API-heavy document workflow. Includes complete path and update/rework path.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "username", "value": "manager1" },
+    { "key": "password", "value": "password" },
+    { "key": "definitionId", "value": "document-update-approval" },
+    { "key": "workflowId", "value": "" },
+    { "key": "taskId", "value": "" },
+    { "key": "eventName", "value": "document-updated" },
+    { "key": "correlationId", "value": "DOC-42" }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{username}}", "type": "string" },
+      { "key": "password", "value": "{{password}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "00 - Boot / Common",
+      "item": [
+        {
+          "name": "Start Workflow (capture workflowId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initiator\": \"user123\",\n  \"docId\": \"DOC-42\"\n}"
+            },
+            "url": "{{baseUrl}}/workflows/start?definitionId={{definitionId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "if (body && body.workflowId) { pm.collectionVariables.set('workflowId', body.workflowId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Workflow Instance",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}"
+          }
+        },
+        {
+          "name": "Get Runtime Timeline",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/events"
+          }
+        },
+        {
+          "name": "List Tasks (capture first taskId)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "if (Array.isArray(body) && body.length > 0 && body[0].id) { pm.collectionVariables.set('taskId', body[0].id); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Sequence A (Complete / Approved Path)",
+      "item": [
+        {
+          "name": "A1 Claim task",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/claim"
+          }
+        },
+        {
+          "name": "A2 Approve Author Submit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/approve"
+          }
+        },
+        {
+          "name": "A3 List Tasks (manager-review task)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "if (Array.isArray(body) && body.length > 0 && body[0].id) { pm.collectionVariables.set('taskId', body[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A4 Approve Manager Review (final approve)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/approve"
+          }
+        },
+        {
+          "name": "A5 Verify Workflow Completed",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}"
+          }
+        },
+        {
+          "name": "A6 Runtime Timeline (contains API/SYSTEM events)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Sequence B (Update / Rework Path)",
+      "item": [
+        {
+          "name": "B1 Start Fresh Workflow (capture workflowId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initiator\": \"user123\",\n  \"docId\": \"DOC-42\"\n}"
+            },
+            "url": "{{baseUrl}}/workflows/start?definitionId={{definitionId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "if (body && body.workflowId) { pm.collectionVariables.set('workflowId', body.workflowId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B2 List Tasks (capture author task)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "if (Array.isArray(body) && body.length > 0 && body[0].id) { pm.collectionVariables.set('taskId', body[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B3 Approve Author Submit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/approve"
+          }
+        },
+        {
+          "name": "B4 List Tasks (capture manager task)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "if (Array.isArray(body) && body.length > 0 && body[0].id) { pm.collectionVariables.set('taskId', body[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B5 Reject Manager Review (go to update path)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": false,\n    \"reason\": \"needs update\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/reject"
+          }
+        },
+        {
+          "name": "B6 Publish update event (resume EVENT step)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventName\": \"{{eventName}}\",\n  \"correlationId\": \"{{correlationId}}\",\n  \"payload\": {\n    \"updateReceived\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/events"
+          }
+        },
+        {
+          "name": "B7 List Tasks (manager-review again)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "if (Array.isArray(body) && body.length > 0 && body[0].id) { pm.collectionVariables.set('taskId', body[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B8 Approve Manager Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/approve"
+          }
+        },
+        {
+          "name": "B9 Verify Completion",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}"
+          }
+        },
+        {
+          "name": "B10 Runtime Timeline",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "99 - Utility",
+      "item": [
+        {
+          "name": "List Definitions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/definitions"
+          }
+        },
+        {
+          "name": "Get Definition by Id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/definitions/{{definitionId}}"
+          }
+        },
+        {
+          "name": "Rollback Workflow",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/rollback"
+          }
+        },
+        {
+          "name": "Demo Start Sample",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/demo/workflows/start-sample"
+          }
+        },
+        {
+          "name": "Demo Rollback",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/demo/workflows/rollback/{{workflowId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

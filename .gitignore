@@ -1,0 +1,32 @@
+# Maven/Java build output
+target/
+*/target/
+
+# Logs
+*.log
+logs/
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# IDE/editor files
+.idea/
+*.iml
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+local.properties
+
+# Node/frontend dependencies and build output
+node_modules/
+dist/
+build/
+

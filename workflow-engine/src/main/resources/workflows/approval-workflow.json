@@ -1,0 +1,27 @@
+{
+  "id": "approval-workflow",
+  "steps": [
+    {
+      "id": "manager-approval",
+      "type": "USER",
+      "assignment": {
+        "type": "ROLE",
+        "value": "MANAGER"
+      },
+      "candidates": [
+        { "type": "ROLE", "value": "MANAGER" },
+        { "type": "USER", "value": "user123" }
+      ],
+      "approval": {
+        "type": "MIN_APPROVAL",
+        "minApprovals": 2
+      },
+      "next": "final-decision"
+    },
+    {
+      "id": "final-decision",
+      "type": "DECISION",
+      "next": null
+    }
+  ]
+}
