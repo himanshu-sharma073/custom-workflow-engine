@@ -34,7 +34,7 @@ Core reusable module with:
 ### 2) `host-app-example`
 Integration sample that demonstrates:
 - Spring Security ownership
-- `UserContextProvider` bridge
+- `UserContextProvider` 11
 - Example workflow start/rollback endpoints
 - File-based definition loading config
 

@@ -1,0 +1,252 @@
+{
+  "id": "ratings-review-workflow",
+  "version": 4,
+  "stages": [
+    "UPDATE",
+    "ANALYSIS",
+    "COMMITTEE",
+    "POST_COMMITTEE",
+    "RELEASE",
+    "POST_RELEASE"
+  ],
+  "steps": [
+    {
+      "id": "update-job",
+      "name": "Update Job",
+      "type": "user",
+      "stage": "UPDATE",
+      "assignment": {
+        "type": "USER",
+        "value": "${initiator}"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "update-job-decision"
+    },
+    {
+      "id": "update-job-decision",
+      "name": "Update Job Decision",
+      "type": "decision",
+      "stage": "UPDATE",
+      "conditions": [
+        {
+          "expression": "approved == true",
+          "next": "validate-job"
+        },
+        {
+          "expression": "approved == false",
+          "next": "update-job"
+        }
+      ]
+    },
+    {
+      "id": "validate-job",
+      "name": "Validate Job",
+      "type": "system",
+      "stage": "UPDATE",
+      "action": "documentService.quickValidate",
+      "next": "senior-analysis"
+    },
+    {
+      "id": "senior-analysis",
+      "name": "Senior Analysis",
+      "type": "system",
+      "stage": "ANALYSIS",
+      "action": "documentService.quickValidate",
+      "next": "committee-analysis"
+    },
+    {
+      "id": "committee-analysis",
+      "name": "Committee Analysis",
+      "type": "api",
+      "stage": "ANALYSIS",
+      "method": "GET",
+      "url": "https://jsonplaceholder.typicode.com/posts/2",
+      "retryAttempts": 2,
+      "responseMapping": {
+        "committeeTitle": "$.title"
+      },
+      "next": "chairman-analysis"
+    },
+    {
+      "id": "chairman-analysis",
+      "name": "Chairman Analysis",
+      "type": "api",
+      "stage": "ANALYSIS",
+      "method": "GET",
+      "url": "https://jsonplaceholder.typicode.com/posts/3",
+      "retryAttempts": 2,
+      "responseMapping": {
+        "chairmanTitle": "$.title"
+      },
+      "next": "committee-review"
+    },
+    {
+      "id": "committee-review",
+      "name": "Committee Review",
+      "type": "user",
+      "stage": "COMMITTEE",
+      "assignment": {
+        "type": "ROLE",
+        "value": "COMMITTEE_MEMBER"
+      },
+      "approval": {
+        "type": "ALL",
+        "minApprovals": 2
+      },
+      "next": "committee-review-decision"
+    },
+    {
+      "id": "committee-review-decision",
+      "name": "Committee Review Decision",
+      "type": "decision",
+      "stage": "COMMITTEE",
+      "conditions": [
+        {
+          "expression": "approved == true",
+          "next": "post-committee-process"
+        },
+        {
+          "expression": "approved == false",
+          "next": "rework-analysis"
+        }
+      ]
+    },
+    {
+      "id": "rework-analysis",
+      "name": "Rework Analysis",
+      "type": "user",
+      "stage": "ANALYSIS",
+      "assignment": {
+        "type": "ROLE",
+        "value": "ANALYST"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "rework-analysis-decision"
+    },
+    {
+      "id": "rework-analysis-decision",
+      "name": "Rework Analysis Decision",
+      "type": "decision",
+      "stage": "ANALYSIS",
+      "conditions": [
+        {
+          "expression": "approved == true",
+          "next": "senior-analysis"
+        },
+        {
+          "expression": "approved == false",
+          "next": "rework-analysis"
+        }
+      ]
+    },
+    {
+      "id": "post-committee-process",
+      "name": "Post Committee Processing",
+      "type": "system",
+      "stage": "POST_COMMITTEE",
+      "action": "documentService.publish",
+      "next": "chairman-approval"
+    },
+    {
+      "id": "chairman-approval",
+      "name": "Chairman Approval",
+      "type": "user",
+      "stage": "POST_COMMITTEE",
+      "assignment": {
+        "type": "ROLE",
+        "value": "CHAIRMAN"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "chairman-approval-decision"
+    },
+    {
+      "id": "chairman-approval-decision",
+      "name": "Chairman Approval Decision",
+      "type": "decision",
+      "stage": "POST_COMMITTEE",
+      "conditions": [
+        {
+          "expression": "approved == true",
+          "next": "release-decision"
+        },
+        {
+          "expression": "approved == false",
+          "next": "committee-review"
+        }
+      ]
+    },
+    {
+      "id": "release-decision",
+      "name": "Release Decision",
+      "type": "decision",
+      "stage": "RELEASE",
+      "conditions": [
+        {
+          "expression": "approved == true",
+          "next": "release-job"
+        },
+        {
+          "expression": "approved == false",
+          "next": "reject-job"
+        }
+      ]
+    },
+    {
+      "id": "release-job",
+      "name": "Release Job",
+      "type": "system",
+      "stage": "RELEASE",
+      "action": "documentService.publish",
+      "next": "send-notification"
+    },
+    {
+      "id": "reject-job",
+      "name": "Reject Job",
+      "type": "system",
+      "stage": "RELEASE",
+      "action": "documentService.reject",
+      "next": "end"
+    },
+    {
+      "id": "send-notification",
+      "name": "Send Notification",
+      "type": "api",
+      "stage": "POST_RELEASE",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "event": "released",
+        "source": "workflow-engine"
+      },
+      "next": "update-external-system"
+    },
+    {
+      "id": "update-external-system",
+      "name": "Update External System",
+      "type": "api",
+      "stage": "POST_RELEASE",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "event": "external-update",
+        "source": "workflow-engine"
+      },
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "name": "End",
+      "type": "end",
+      "stage": "POST_RELEASE"
+    }
+  ]
+}

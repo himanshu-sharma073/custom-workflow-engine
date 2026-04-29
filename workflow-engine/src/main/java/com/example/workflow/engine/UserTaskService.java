@@ -138,8 +138,13 @@ public class UserTaskService {
 
     private UserTaskEntity recordDecision(UUID taskId, TaskActionRequest request, String decision) {
         UserTaskEntity task = taskRepository.findById(taskId).orElseThrow();
+        if (!"PENDING".equals(task.getStatus())) {
+            return task;
+        }
+
         String user = userContextProvider.getCurrentUser();
-        if (!approvalRepository.existsByTaskIdAndUserId(taskId, user)) {
+        boolean hasExistingDecision = approvalRepository.existsByTaskIdAndUserId(taskId, user);
+        if (!hasExistingDecision) {
             UserTaskApprovalEntity approval = new UserTaskApprovalEntity();
             approval.setTaskId(taskId);
             approval.setUserId(user);
@@ -152,9 +157,11 @@ public class UserTaskService {
             task.setStatus("REJECTED");
             audit(task, "REJECT");
             UserTaskEntity saved = taskRepository.save(task);
-            Map<String, Object> ctx = new HashMap<>(request.input() == null ? Map.of() : request.input());
-            ctx.put("approved", false);
-            workflowExecutionService.onUserTaskCompleted(saved.getWorkflowId(), saved.getStepId(), ctx);
+            if (!hasExistingDecision) {
+                Map<String, Object> ctx = new HashMap<>(request.input() == null ? Map.of() : request.input());
+                ctx.put("approved", false);
+                workflowExecutionService.onUserTaskCompleted(saved.getWorkflowId(), saved.getStepId(), ctx);
+            }
             return saved;
         }
 
@@ -170,7 +177,7 @@ public class UserTaskService {
         }
         audit(task, "APPROVE");
         UserTaskEntity saved = taskRepository.save(task);
-        if (complete) {
+        if (complete && !hasExistingDecision) {
             Map<String, Object> ctx = new HashMap<>(request.input() == null ? Map.of() : request.input());
             ctx.put("approved", true);
             workflowExecutionService.onUserTaskCompleted(saved.getWorkflowId(), saved.getStepId(), ctx);

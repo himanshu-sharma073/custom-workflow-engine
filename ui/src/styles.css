@@ -11,6 +11,7 @@ body {
   margin: 0;
   background: radial-gradient(circle at top right, #bfdbfe 0%, #f8fafc 35%), linear-gradient(180deg, #f8fafc, #eef2ff);
   color: #111827;
+  overflow-x: hidden;
 }
 
 button {
@@ -31,9 +32,11 @@ button.primary {
 button.primary:hover { background: #1d4ed8; }
 
 .dashboard {
-  max-width: 1280px;
+  max-width: 1800px;
   margin: 0 auto;
   padding: 24px;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .pageHeader {
@@ -61,8 +64,9 @@ button.primary:hover { background: #1d4ed8; }
 
 .grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   gap: 12px;
+  min-width: 0;
 }
 
 .card {
@@ -72,6 +76,8 @@ button.primary:hover { background: #1d4ed8; }
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .list {
@@ -141,4 +147,159 @@ textarea {
   .grid { grid-template-columns: 1fr; }
   .kpiRow { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
   .twoCol { grid-template-columns: 1fr; }
+}
+
+.wg-shell {
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  margin-top: 12px;
+  background: #f8fbff;
+  padding: 8px;
+  max-height: 560px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.wg-svg {
+  display: block;
+  min-height: 260px;
+  overflow: visible;
+}
+
+.wg-edge {
+  fill: none;
+  stroke: #64748b;
+  stroke-width: 1.6;
+}
+
+.wg-edge-true {
+  stroke: #0f766e;
+}
+
+.wg-edge-false {
+  stroke: #b45309;
+}
+
+.wg-edge-label {
+  font-size: 11px;
+  fill: #334155;
+}
+
+#wgArrow path {
+  fill: #64748b;
+}
+
+.wg-node {
+  stroke-width: 2;
+}
+
+.wg-node-selected {
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+
+.wg-node-completed {
+  fill: #dcfce7;
+  stroke: #16a34a;
+}
+
+.wg-node-current {
+  fill: #dbeafe;
+  stroke: #2563eb;
+}
+
+.wg-node-failed {
+  fill: #fee2e2;
+  stroke: #dc2626;
+}
+
+.wg-node-rolled_back {
+  fill: #fef3c7;
+  stroke: #d97706;
+}
+
+.wg-node-pending {
+  fill: #e2e8f0;
+  stroke: #64748b;
+}
+
+.wg-node-decision {
+  fill: #fef3c7;
+}
+
+.wg-node-title {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #0f172a;
+}
+
+.wg-node-subtitle {
+  font-size: 10px;
+  fill: #334155;
+}
+
+.wg-node-icon {
+  font-size: 14px;
+  fill: #0f172a;
+  font-weight: 700;
+}
+
+.wg-node-action {
+  width: 54px;
+  height: 20px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (min-width: 1600px) {
+  .dashboard {
+    max-width: 2200px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .grid {
+    grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .kpiRow {
+    grid-template-columns: repeat(6, minmax(140px, 1fr));
+  }
+
+  .twoCol {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+
+  .wg-shell {
+    max-height: 700px;
+  }
+}
+
+@media (min-width: 2400px) {
+  .dashboard {
+    max-width: 2600px;
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .grid {
+    grid-template-columns: minmax(380px, 520px) minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .kpiRow {
+    grid-template-columns: repeat(8, minmax(140px, 1fr));
+  }
+
+  .wg-shell {
+    max-height: 820px;
+  }
 }

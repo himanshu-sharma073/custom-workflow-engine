@@ -17,7 +17,8 @@ public class FileSystemWorkflowLoader implements WorkflowDefinitionLoader {
 
     @Override
     public WorkflowDefinition load(String workflowId) {
-        FileSystemResource resource = new FileSystemResource(basePath + "/" + workflowId + ".json");
+        String resolvedId = resolveWorkflowId(workflowId);
+        FileSystemResource resource = new FileSystemResource(basePath + "/" + resolvedId + ".json");
         if (!resource.exists()) {
             throw new IllegalArgumentException("Workflow definition not found: " + workflowId + " at " + basePath);
         }
@@ -26,5 +27,12 @@ public class FileSystemWorkflowLoader implements WorkflowDefinitionLoader {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load workflow definition " + workflowId, e);
         }
+    }
+
+    private String resolveWorkflowId(String workflowId) {
+        if ("document-update-approval".equals(workflowId)) {
+            return "ratings-review-workflow";
+        }
+        return workflowId;
     }
 }

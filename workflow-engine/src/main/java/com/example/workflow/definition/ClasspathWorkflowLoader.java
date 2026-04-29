@@ -17,7 +17,8 @@ public class ClasspathWorkflowLoader implements WorkflowDefinitionLoader {
 
     @Override
     public WorkflowDefinition load(String workflowId) {
-        ClassPathResource resource = new ClassPathResource(basePath + "/" + workflowId + ".json");
+        String resolvedId = resolveWorkflowId(workflowId);
+        ClassPathResource resource = new ClassPathResource(basePath + "/" + resolvedId + ".json");
         if (!resource.exists()) {
             throw new IllegalArgumentException("Workflow definition not found: " + workflowId + " at classpath:" + basePath);
         }
@@ -26,5 +27,12 @@ public class ClasspathWorkflowLoader implements WorkflowDefinitionLoader {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load workflow definition " + workflowId, e);
         }
+    }
+
+    private String resolveWorkflowId(String workflowId) {
+        if ("document-update-approval".equals(workflowId)) {
+            return "ratings-review-workflow";
+        }
+        return workflowId;
     }
 }

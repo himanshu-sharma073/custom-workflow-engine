@@ -17,6 +17,7 @@ import { ApprovalPanel } from "../components/ApprovalPanel";
 import { ApprovalHistory } from "../components/ApprovalHistory";
 import { WorkflowRuntimePanel } from "../components/WorkflowRuntimePanel";
 import { WorkflowDag } from "../components/WorkflowDag";
+import { GraphNode } from "../components/workflow-graph/types";
 
 export function TaskDashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -28,12 +29,20 @@ export function TaskDashboardPage() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowState | null>(null);
   const [selectedDefinition, setSelectedDefinition] = useState<WorkflowDefinition | null>(null);
   const [query, setQuery] = useState("");
+  const [selectedGraphNode, setSelectedGraphNode] = useState<GraphNode | null>(null);
 
   const load = async () => {
     try {
       setError(null);
       const [taskData, workflowData, definitionData] = await Promise.all([fetchTasks(), fetchWorkflows(), fetchDefinitions()]);
       setTasks(taskData);
+      if (selectedTask) {
+        const refreshedSelectedTask = taskData.find((t) => t.id === selectedTask.id) || null;
+        setSelectedTask(refreshedSelectedTask);
+      } else if (taskData.length > 0) {
+        setSelectedTask(taskData[0]);
+      }
+
       setWorkflows(workflowData);
       setDefinitions(definitionData);
 
@@ -120,7 +129,16 @@ export function TaskDashboardPage() {
                     <div>{d.id}</div>
                     <div className="subtle">v{d.version ?? 1} | steps: {d.steps.length}</div>
                   </div>
-                  <button onClick={async () => setSelectedDefinition(await fetchDefinition(d.id))}>Open</button>
+                  <button
+                    onClick={async () => {
+                      setSelectedWorkflow(null);
+                      setWorkflowHistory([]);
+                      setSelectedGraphNode(null);
+                      setSelectedDefinition(await fetchDefinition(d.id));
+                    }}
+                  >
+                    Open
+                  </button>
                 </li>
               ))}
             </ul>
@@ -151,7 +169,27 @@ export function TaskDashboardPage() {
                 definition={selectedDefinition}
                 currentStepId={selectedWorkflow?.currentStep}
                 history={workflowHistory}
+                onStepSelect={(node) => setSelectedGraphNode(node)}
+                onRollbackStep={
+                  selectedWorkflow
+                    ? async (node) => {
+                        const confirmed = window.confirm(`Rollback workflow to "${node.label}"?`);
+                        if (!confirmed) return;
+                        await rollbackWorkflow(selectedWorkflow.workflowId);
+                        await load();
+                      }
+                    : undefined
+                }
               />
+              {selectedGraphNode ? (
+                <div style={{ marginTop: 10, borderTop: "1px solid #dbeafe", paddingTop: 8 }}>
+                  <div><strong>Selected Step:</strong> {selectedGraphNode.label}</div>
+                  <div className="subtle">
+                    {selectedGraphNode.id} | {selectedGraphNode.type} | {selectedGraphNode.status}
+                    {selectedGraphNode.stage ? ` | ${selectedGraphNode.stage}` : ""}
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </div>
@@ -166,7 +204,7 @@ export function TaskDashboardPage() {
                 <li key={w.workflowId} className={`listItem ${selectedWorkflow?.workflowId === w.workflowId ? "active" : ""}`}>
                   <div>
                     <div className="mono">{w.workflowId}</div>
-                    <div className="subtle">{w.definitionId} · {w.status}</div>
+                    <div className="subtle">{w.definitionId} | {w.status}</div>
                   </div>
                   <button onClick={async () => openWorkflow(w.workflowId)}>Inspect</button>
                 </li>
@@ -225,7 +263,15 @@ export function TaskDashboardPage() {
                     <div className="subtle">{t.assignmentType}:{t.assignmentValue}</div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={async () => { await claimTask(t.id); await load(); }}>Claim</button>
+                    <button
+                      onClick={async () => {
+                        const claimed = await claimTask(t.id);
+                        await load();
+                        setSelectedTask(claimed);
+                      }}
+                    >
+                      Claim & Open
+                    </button>
                     <button onClick={() => setSelectedTask(t)}>Open</button>
                   </div>
                 </li>
@@ -241,7 +287,21 @@ export function TaskDashboardPage() {
               <div><strong>Task ID:</strong> <span className="mono">{selectedTask.id}</span></div>
               <div><strong>Step:</strong> {selectedTask.stepId}</div>
               <div><strong>Status:</strong> {selectedTask.status}</div>
-              <ApprovalPanel task={selectedTask} onDone={load} />
+              {!selectedTask.claimedBy ? (
+                <div style={{ marginTop: 10 }}>
+                  <p className="subtle">Claim this task to take approval action.</p>
+                  <button
+                    onClick={async () => {
+                      const claimed = await claimTask(selectedTask.id);
+                      await load();
+                      setSelectedTask(claimed);
+                    }}
+                  >
+                    Claim This Task
+                  </button>
+                </div>
+              ) : null}
+              {selectedTask.claimedBy ? <ApprovalPanel task={selectedTask} onDone={load} /> : null}
               <ApprovalHistory taskId={selectedTask.id} />
             </>
           )}

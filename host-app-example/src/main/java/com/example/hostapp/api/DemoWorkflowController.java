@@ -17,7 +17,7 @@ public class DemoWorkflowController {
 
     @PostMapping("/start-sample")
     public WorkflowState startSampleWorkflow() {
-        return workflowEngine.startWorkflow("document-update-approval", Map.of("initiator", "user123"));
+        return workflowEngine.startWorkflow("ratings-review-workflow", Map.of("initiator", "user123"));
     }
 
     @PostMapping("/rollback/{workflowId}")

@@ -85,6 +85,7 @@ public class WorkflowExecutionService implements WorkflowEngine {
         historyRepository.markRolledBack(workflowId, last.stepId());
         String previousStep = history.size() > 1 ? history.get(history.size() - 2).stepId() : current.currentStep();
         workflowRepository.updateState(workflowId, "RUNNING", previousStep, current.context());
+        executeCurrent(workflowId);
         return getWorkflow(workflowId);
     }
 
@@ -176,7 +177,12 @@ public class WorkflowExecutionService implements WorkflowEngine {
         final boolean isWaiting = executionResult.waiting();
         final String nextStepId = executionResult.nextStepId();
 
-        workflowRepository.updateState(workflowId, isEnded ? "COMPLETED" : "RUNNING", nextStepId, ctx.variables());
+        final String resultingStep =
+            isEnded ? null : (isWaiting ? step.id() : nextStepId);
+        final String resultingStatus =
+            isEnded ? "COMPLETED" : (isWaiting ? "WAITING" : "RUNNING");
+
+        workflowRepository.updateState(workflowId, resultingStatus, resultingStep, ctx.variables());
         listeners.forEach(l -> l.afterStep(workflowId, step, ctx.variables()));
 
         if (!isWaiting && !isEnded && nextStepId != null) {

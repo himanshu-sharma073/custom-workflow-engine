@@ -6,9 +6,9 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8081" },
-    { "key": "username", "value": "manager1" },
+    { "key": "username", "value": "user123" },
     { "key": "password", "value": "password" },
-    { "key": "definitionId", "value": "document-update-approval" },
+    { "key": "definitionId", "value": "ratings-review-workflow" },
     { "key": "workflowId", "value": "" },
     { "key": "taskId", "value": "" },
     { "key": "eventName", "value": "document-updated" },

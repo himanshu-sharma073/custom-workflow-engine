@@ -20,7 +20,9 @@ export type DecisionCondition = {
 
 export type WorkflowStep = {
   id: string;
+  name?: string;
   type: string;
+  stage?: string;
   assignment?: AssignmentSpec;
   candidates?: CandidateSpec[];
   approval?: ApprovalSpec;
@@ -115,8 +117,8 @@ export async function fetchApprovals(taskId: string): Promise<Approval[]> {
   return asArray<Approval>(data);
 }
 
-export async function claimTask(taskId: string): Promise<void> {
-  await requestJson(`${base}/tasks/${taskId}/claim`, { method: "POST" });
+export async function claimTask(taskId: string): Promise<Task> {
+  return requestJson(`${base}/tasks/${taskId}/claim`, { method: "POST" });
 }
 
 export async function approveTask(taskId: string, input: Record<string, unknown>, approvalType = "ANY", minApprovals = 1): Promise<void> {

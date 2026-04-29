@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class WorkflowDefinitionCatalogService {
@@ -32,8 +34,12 @@ public class WorkflowDefinitionCatalogService {
     }
 
     public List<WorkflowDefinition> listDefinitions() {
-        return listDefinitionIds().stream()
-            .map(loader::load)
+        Map<String, WorkflowDefinition> unique = new LinkedHashMap<>();
+        for (String definitionId : listDefinitionIds()) {
+            WorkflowDefinition loaded = loader.load(definitionId);
+            unique.putIfAbsent(loaded.id(), loaded);
+        }
+        return unique.values().stream()
             .sorted(Comparator.comparing(WorkflowDefinition::id))
             .toList();
     }
