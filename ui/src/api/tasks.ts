@@ -159,6 +159,15 @@ export async function fetchWorkflow(workflowId: string): Promise<WorkflowState> 
   return requestJson(`${base}/${workflowId}`);
 }
 
+export async function startWorkflow(definitionId: string, input: Record<string, unknown> = {}): Promise<WorkflowState> {
+  const qs = `?definitionId=${encodeURIComponent(definitionId)}`;
+  return requestJson(`${base}/start${qs}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+}
+
 export async function rollbackWorkflow(workflowId: string, targetStepId?: string): Promise<WorkflowState> {
   const qs = targetStepId ? `?targetStepId=${encodeURIComponent(targetStepId)}` : "";
   return requestJson(`${base}/${workflowId}/rollback${qs}`, { method: "POST" });

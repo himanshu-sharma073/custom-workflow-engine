@@ -9,6 +9,7 @@ import {
   fetchWorkflowHistory,
   fetchWorkflows,
   rollbackWorkflow,
+  startWorkflow,
   Task,
   WorkflowDefinition,
   WorkflowHistoryRecord,
@@ -33,6 +34,8 @@ export function TaskDashboardPage() {
   const [selectedGraphNode, setSelectedGraphNode] = useState<GraphNode | null>(null);
   const [rollbackTargetStepId, setRollbackTargetStepId] = useState("");
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
+  const [startInputJson, setStartInputJson] = useState('{\n  "initiator": "user123"\n}');
+  const [isStartingWorkflow, setIsStartingWorkflow] = useState(false);
 
   const load = async () => {
     try {
@@ -122,6 +125,34 @@ export function TaskDashboardPage() {
     setWorkflowHistory(await fetchWorkflowHistory(workflow.workflowId));
   };
 
+  const startSelectedDefinition = async () => {
+    if (!selectedDefinition) return;
+    let parsed: Record<string, unknown>;
+    try {
+      const raw = startInputJson.trim();
+      const maybe = raw ? JSON.parse(raw) : {};
+      if (maybe === null || typeof maybe !== "object" || Array.isArray(maybe)) {
+        throw new Error("Input JSON must be an object.");
+      }
+      parsed = maybe as Record<string, unknown>;
+    } catch (e: any) {
+      setError(`Invalid input JSON: ${e?.message || "Could not parse"}`);
+      return;
+    }
+
+    try {
+      setIsStartingWorkflow(true);
+      setError(null);
+      const started = await startWorkflow(selectedDefinition.id, parsed);
+      await openWorkflow(started.workflowId);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Failed to start workflow.");
+    } finally {
+      setIsStartingWorkflow(false);
+    }
+  };
+
   return (
     <div className="dashboard">
       <div className="pageHeader">
@@ -204,6 +235,24 @@ export function TaskDashboardPage() {
                     {stepTypeStats.map(([t, c]) => <span className="pill" key={t}>{t}: {c}</span>)}
                   </div>
                 </div>
+              </div>
+              <div style={{ marginTop: 12, border: "1px solid #dbeafe", borderRadius: 10, padding: 10, background: "#f8fbff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <strong>Start Workflow Instance</strong>
+                  <button className="primary" disabled={isStartingWorkflow} onClick={startSelectedDefinition}>
+                    {isStartingWorkflow ? "Starting..." : "Start"}
+                  </button>
+                </div>
+                <div className="subtle" style={{ marginBottom: 6 }}>
+                  Input JSON body for <span className="mono">/workflows/start?definitionId={selectedDefinition.id}</span>
+                </div>
+                <textarea
+                  value={startInputJson}
+                  onChange={(e) => setStartInputJson(e.target.value)}
+                  rows={7}
+                  spellCheck={false}
+                  style={{ width: "100%", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, borderRadius: 8, border: "1px solid #cbd5e1", padding: 8, resize: "vertical", background: "#ffffff" }}
+                />
               </div>
               <WorkflowDag
                 definition={selectedDefinition}
