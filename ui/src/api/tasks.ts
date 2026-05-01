@@ -79,6 +79,10 @@ export type WorkflowHistoryRecord = {
 const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL?.trim?.() || "";
 const base = `${apiBaseUrl}/workflows`;
 
+export type SessionUser = {
+  userName: string;
+};
+
 async function requestJson(path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(path, init);
   const contentType = res.headers.get("content-type") || "";
@@ -95,6 +99,10 @@ async function requestJson(path: string, init?: RequestInit): Promise<any> {
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+export async function fetchCurrentUser(): Promise<SessionUser> {
+  return requestJson(`${base}/session/me`);
 }
 
 export async function fetchDefinitions(): Promise<WorkflowDefinition[]> {
@@ -151,8 +159,9 @@ export async function fetchWorkflow(workflowId: string): Promise<WorkflowState> 
   return requestJson(`${base}/${workflowId}`);
 }
 
-export async function rollbackWorkflow(workflowId: string): Promise<WorkflowState> {
-  return requestJson(`${base}/${workflowId}/rollback`, { method: "POST" });
+export async function rollbackWorkflow(workflowId: string, targetStepId?: string): Promise<WorkflowState> {
+  const qs = targetStepId ? `?targetStepId=${encodeURIComponent(targetStepId)}` : "";
+  return requestJson(`${base}/${workflowId}/rollback${qs}`, { method: "POST" });
 }
 
 export async function fetchWorkflowHistory(workflowId: string): Promise<WorkflowHistoryRecord[]> {

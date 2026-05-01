@@ -1,0 +1,53 @@
+{
+  "id": "onboarding-review-workflow",
+  "version": 6,
+  "stages": ["WELCOME", "ACCESS", "INTEGRATION"],
+  "steps": [
+    {
+      "id": "first-day-forms",
+      "name": "First Day Forms",
+      "type": "user",
+      "stage": "WELCOME",
+      "assignment": {
+        "type": "USER",
+        "value": "${initiator}"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "provision-mailbox"
+    },
+    {
+      "id": "provision-mailbox",
+      "name": "Provision Mailbox",
+      "type": "system",
+      "stage": "ACCESS",
+      "action": "documentService.quickValidate",
+      "next": "ping-directory"
+    },
+    {
+      "id": "ping-directory",
+      "name": "Ping Directory",
+      "type": "api",
+      "stage": "INTEGRATION",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "retryAttempts": 2,
+      "body": {
+        "event": "new-hire-profile-sync",
+        "source": "onboarding-review-workflow"
+      },
+      "responseMapping": {
+        "directorySyncId": "$.id"
+      },
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "name": "End",
+      "type": "end",
+      "stage": "INTEGRATION"
+    }
+  ]
+}

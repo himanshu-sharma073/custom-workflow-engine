@@ -7,14 +7,12 @@ export function WorkflowDag({
   definition,
   currentStepId,
   history,
-  onStepSelect,
-  onRollbackStep
+  onStepSelect
 }: {
   definition: WorkflowDefinition;
   currentStepId?: string;
   history?: WorkflowHistoryRecord[];
   onStepSelect?: (node: GraphNode) => void;
-  onRollbackStep?: (node: GraphNode) => void;
 }) {
   return (
     <WorkflowGraph
@@ -22,7 +20,6 @@ export function WorkflowDag({
       currentStepId={currentStepId}
       history={history || []}
       onStepSelect={onStepSelect}
-      onRollbackStep={onRollbackStep}
     />
   );
 }

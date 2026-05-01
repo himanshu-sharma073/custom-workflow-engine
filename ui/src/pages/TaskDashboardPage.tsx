@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   claimTask,
+  fetchCurrentUser,
   fetchDefinition,
   fetchDefinitions,
   fetchTasks,
@@ -17,7 +18,7 @@ import { ApprovalPanel } from "../components/ApprovalPanel";
 import { ApprovalHistory } from "../components/ApprovalHistory";
 import { WorkflowRuntimePanel } from "../components/WorkflowRuntimePanel";
 import { WorkflowDag } from "../components/WorkflowDag";
-import { GraphNode } from "../components/workflow-graph/types";
+import { GraphNode, nodeStatusFromHistory } from "../components/workflow-graph/types";
 
 export function TaskDashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -30,11 +31,19 @@ export function TaskDashboardPage() {
   const [selectedDefinition, setSelectedDefinition] = useState<WorkflowDefinition | null>(null);
   const [query, setQuery] = useState("");
   const [selectedGraphNode, setSelectedGraphNode] = useState<GraphNode | null>(null);
+  const [rollbackTargetStepId, setRollbackTargetStepId] = useState("");
+  const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
   const load = async () => {
     try {
       setError(null);
       const [taskData, workflowData, definitionData] = await Promise.all([fetchTasks(), fetchWorkflows(), fetchDefinitions()]);
+      try {
+        const session = await fetchCurrentUser();
+        setCurrentUserName(session.userName);
+      } catch {
+        setCurrentUserName(null);
+      }
       setTasks(taskData);
       if (selectedTask) {
         const refreshedSelectedTask = taskData.find((t) => t.id === selectedTask.id) || null;
@@ -83,6 +92,29 @@ export function TaskDashboardPage() {
     return [...map.entries()];
   }, [selectedDefinition]);
 
+  /** Steps that progressed past execution (matches DAG “completed”; raw history uses USER_WAITING / SYSTEM_COMPLETED / API_SUCCESS etc.) */
+  const completedRollbackSteps = useMemo(() => {
+    if (!selectedWorkflow || !selectedDefinition) return [] as string[];
+
+    const cur = selectedWorkflow.currentStep;
+    const items: string[] = [];
+    for (const s of selectedDefinition.steps) {
+      const { status } = nodeStatusFromHistory(s.id, cur, workflowHistory);
+      if (status === "COMPLETED") {
+        items.push(s.id);
+      }
+    }
+    return items;
+  }, [selectedWorkflow, selectedDefinition, workflowHistory]);
+
+  useEffect(() => {
+    if (completedRollbackSteps.length === 0) {
+      setRollbackTargetStepId("");
+      return;
+    }
+    setRollbackTargetStepId(completedRollbackSteps[completedRollbackSteps.length - 1]);
+  }, [completedRollbackSteps]);
+
   const openWorkflow = async (workflowId: string) => {
     const workflow = await fetchWorkflow(workflowId);
     setSelectedWorkflow(workflow);
@@ -97,9 +129,17 @@ export function TaskDashboardPage() {
           <h1 style={{ margin: 0 }}>Workflow Dashboard</h1>
           <p className="subtle" style={{ marginTop: 4 }}>Interactive view of definitions, runtime instances, DAG, and human tasks.</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {selectedDefinition && <button onClick={() => setSelectedDefinition(null)}>Close DAG View</button>}
-          <button className="primary" onClick={load}>Refresh</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {currentUserName ? (
+            <span className="dashboard-user-pill" title="Current user (from workflow engine session)">
+              <i className="fa-regular fa-user dashboard-user-pill__icon" aria-hidden />
+              <span className="dashboard-user-pill__name">{currentUserName}</span>
+            </span>
+          ) : null}
+          <div style={{ display: "flex", gap: 8 }}>
+            {selectedDefinition && <button onClick={() => setSelectedDefinition(null)}>Close DAG View</button>}
+            <button className="primary" onClick={load}>Refresh</button>
+          </div>
         </div>
       </div>
 
@@ -170,16 +210,6 @@ export function TaskDashboardPage() {
                 currentStepId={selectedWorkflow?.currentStep}
                 history={workflowHistory}
                 onStepSelect={(node) => setSelectedGraphNode(node)}
-                onRollbackStep={
-                  selectedWorkflow
-                    ? async (node) => {
-                        const confirmed = window.confirm(`Rollback workflow to "${node.label}"?`);
-                        if (!confirmed) return;
-                        await rollbackWorkflow(selectedWorkflow.workflowId);
-                        await load();
-                      }
-                    : undefined
-                }
               />
               {selectedGraphNode ? (
                 <div style={{ marginTop: 10, borderTop: "1px solid #dbeafe", paddingTop: 8 }}>
@@ -228,9 +258,39 @@ export function TaskDashboardPage() {
                 </div>
               </div>
               <div style={{ marginTop: 8 }}>
-                <button onClick={async () => { await rollbackWorkflow(selectedWorkflow.workflowId); await load(); }}>Rollback Workflow</button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <label htmlFor="rollbackTargetStep"><strong>Rollback to completed step:</strong></label>
+                  <select
+                    id="rollbackTargetStep"
+                    value={rollbackTargetStepId}
+                    onChange={(e) => setRollbackTargetStepId(e.target.value)}
+                    disabled={completedRollbackSteps.length === 0}
+                  >
+                    {completedRollbackSteps.length === 0 ? (
+                      <option value="">No completed steps</option>
+                    ) : (
+                      completedRollbackSteps.map((stepId) => (
+                        <option key={stepId} value={stepId}>
+                          {stepId}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    disabled={!rollbackTargetStepId}
+                    onClick={async () => {
+                      if (!rollbackTargetStepId) return;
+                      const confirmed = window.confirm(`Rollback workflow to "${rollbackTargetStepId}"?`);
+                      if (!confirmed) return;
+                      await rollbackWorkflow(selectedWorkflow.workflowId, rollbackTargetStepId);
+                      await load();
+                    }}
+                  >
+                    Rollback Workflow
+                  </button>
+                </div>
               </div>
-              <WorkflowRuntimePanel workflowId={selectedWorkflow.workflowId} />
+              <WorkflowRuntimePanel workflowId={selectedWorkflow.workflowId} history={workflowHistory} />
             </>
           )}
         </div>

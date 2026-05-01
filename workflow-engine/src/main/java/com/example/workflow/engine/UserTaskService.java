@@ -15,6 +15,7 @@ import com.example.workflow.persistence.repository.UserTaskApprovalRepository;
 import com.example.workflow.persistence.repository.UserTaskCandidateRepository;
 import com.example.workflow.persistence.repository.UserTaskRepository;
 import com.example.workflow.persistence.repository.WorkflowAuditEventRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,8 @@ import java.util.*;
 
 @Service
 public class UserTaskService {
+    private static final int MAX_AUDIT_PAYLOAD_LEN = 2000;
+
     private final UserTaskRepository taskRepository;
     private final UserTaskCandidateRepository candidateRepository;
     private final UserTaskApprovalRepository approvalRepository;
@@ -32,6 +35,7 @@ public class UserTaskService {
     private final AssignmentEvaluator assignmentEvaluator;
     private final ApprovalPolicyService approvalPolicyService;
     private final WorkflowExecutionService workflowExecutionService;
+    private final ObjectMapper objectMapper;
 
     public UserTaskService(UserTaskRepository taskRepository,
                            UserTaskCandidateRepository candidateRepository,
@@ -40,7 +44,8 @@ public class UserTaskService {
                            UserContextProvider userContextProvider,
                            AssignmentEvaluator assignmentEvaluator,
                            ApprovalPolicyService approvalPolicyService,
-                           @Lazy WorkflowExecutionService workflowExecutionService) {
+                           @Lazy WorkflowExecutionService workflowExecutionService,
+                           ObjectMapper objectMapper) {
         this.taskRepository = taskRepository;
         this.candidateRepository = candidateRepository;
         this.approvalRepository = approvalRepository;
@@ -49,6 +54,7 @@ public class UserTaskService {
         this.assignmentEvaluator = assignmentEvaluator;
         this.approvalPolicyService = approvalPolicyService;
         this.workflowExecutionService = workflowExecutionService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -74,7 +80,7 @@ public class UserTaskService {
     public UserTaskEntity claim(UUID taskId) {
         UserTaskEntity task = taskRepository.findById(taskId).orElseThrow();
         task.setClaimedBy(userContextProvider.getCurrentUser());
-        audit(task, "CLAIM");
+        audit(task, "CLAIM", Map.of("claimedBy", userContextProvider.getCurrentUser()));
         return taskRepository.save(task);
     }
 
@@ -120,7 +126,7 @@ public class UserTaskService {
             entity.setValue(c.value());
             candidateRepository.save(entity);
         }
-        audit(task, "CREATED");
+        audit(task, "CREATED", assignmentPayload(task));
         return task;
     }
 
@@ -132,7 +138,7 @@ public class UserTaskService {
         if (resetApprovals) {
             approvalRepository.deleteByTaskId(taskId);
         }
-        audit(task, "ROLLED_BACK_REOPEN");
+        audit(task, "ROLLED_BACK_REOPEN", Map.of("resetApprovals", resetApprovals));
         return taskRepository.save(task);
     }
 
@@ -155,7 +161,7 @@ public class UserTaskService {
 
         if ("REJECTED".equals(decision)) {
             task.setStatus("REJECTED");
-            audit(task, "REJECT");
+            audit(task, "REJECT", decisionPayload(request, decision));
             UserTaskEntity saved = taskRepository.save(task);
             if (!hasExistingDecision) {
                 Map<String, Object> ctx = new HashMap<>(request.input() == null ? Map.of() : request.input());
@@ -175,7 +181,7 @@ public class UserTaskService {
         if (complete) {
             task.setStatus("COMPLETED");
         }
-        audit(task, "APPROVE");
+        audit(task, "APPROVE", decisionPayload(request, decision));
         UserTaskEntity saved = taskRepository.save(task);
         if (complete && !hasExistingDecision) {
             Map<String, Object> ctx = new HashMap<>(request.input() == null ? Map.of() : request.input());
@@ -193,14 +199,66 @@ public class UserTaskService {
         return context;
     }
 
-    private void audit(UserTaskEntity task, String eventType) {
+    private Map<String, Object> assignmentPayload(UserTaskEntity task) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("stepId", task.getStepId());
+        if (task.getAssignmentType() != null) {
+            m.put("assignmentType", task.getAssignmentType());
+        }
+        if (task.getAssignmentValue() != null) {
+            m.put("assignmentValue", task.getAssignmentValue());
+        }
+        return m;
+    }
+
+    private Map<String, Object> decisionPayload(TaskActionRequest request, String decision) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("decision", decision);
+        if (request == null) {
+            return m;
+        }
+        if (request.workflowId() != null) {
+            m.put("workflowId", request.workflowId());
+        }
+        if (request.approvalType() != null) {
+            m.put("approvalType", request.approvalType());
+        }
+        if (request.minApprovals() != null) {
+            m.put("minApprovals", request.minApprovals());
+        }
+        if (request.input() != null && !request.input().isEmpty()) {
+            m.put("input", request.input());
+        }
+        return m;
+    }
+
+    private void audit(UserTaskEntity task, String eventType, Map<String, Object> extras) {
         WorkflowAuditEventEntity event = new WorkflowAuditEventEntity();
         event.setId(UUID.randomUUID());
         event.setWorkflowId(task.getWorkflowId());
         event.setTaskId(task.getId());
         event.setEventType(eventType);
-        event.setPayload("{}");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("stepId", task.getStepId());
+        payload.put("taskId", task.getId().toString());
+        if (extras != null) {
+            for (Map.Entry<String, Object> e : extras.entrySet()) {
+                if (!payload.containsKey(e.getKey())) {
+                    payload.put(e.getKey(), e.getValue());
+                }
+            }
+        }
+        event.setPayload(writeAuditJson(payload));
         event.setCreatedAt(Instant.now());
         auditRepository.save(event);
+    }
+
+    private String writeAuditJson(Map<String, Object> payload) {
+        try {
+            String s = objectMapper.writeValueAsString(payload);
+            return s.length() <= MAX_AUDIT_PAYLOAD_LEN ? s : s.substring(0, MAX_AUDIT_PAYLOAD_LEN - 3) + "...";
+        } catch (Exception e) {
+            return "{\"error\":\"audit-serialization-failed\"}";
+        }
     }
 }

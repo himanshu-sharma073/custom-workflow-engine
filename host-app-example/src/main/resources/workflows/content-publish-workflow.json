@@ -1,0 +1,61 @@
+{
+  "id": "content-publish-workflow",
+  "version": 6,
+  "stages": ["EDITORIAL", "BUILD", "DISTRIBUTION", "FINALIZE"],
+  "steps": [
+    {
+      "id": "copy-edit-review",
+      "name": "Copy Edit Review",
+      "type": "user",
+      "stage": "EDITORIAL",
+      "assignment": {
+        "type": "USER",
+        "value": "${initiator}"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "assemble-preview"
+    },
+    {
+      "id": "assemble-preview",
+      "name": "Assemble Preview",
+      "type": "system",
+      "stage": "BUILD",
+      "action": "documentService.quickValidate",
+      "next": "notify-subscribers"
+    },
+    {
+      "id": "notify-subscribers",
+      "name": "Notify Subscribers",
+      "type": "api",
+      "stage": "DISTRIBUTION",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "retryAttempts": 2,
+      "body": {
+        "event": "newsletter-draft-ready",
+        "source": "content-publish-workflow"
+      },
+      "responseMapping": {
+        "notificationRef": "$.id"
+      },
+      "next": "stamp-published"
+    },
+    {
+      "id": "stamp-published",
+      "name": "Stamp Published",
+      "type": "system",
+      "stage": "FINALIZE",
+      "action": "documentService.publish",
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "name": "End",
+      "type": "end",
+      "stage": "FINALIZE"
+    }
+  ]
+}

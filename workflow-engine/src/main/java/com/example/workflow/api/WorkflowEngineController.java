@@ -1,8 +1,9 @@
 package com.example.workflow.api;
 
-import com.example.workflow.api.dto.TaskActionRequest;
-import com.example.workflow.persistence.spi.WorkflowState;
+import com.example.workflow.api.dto.SessionUserResponse;
+import com.example.workflow.auth.UserContextProvider;
 import com.example.workflow.persistence.spi.WorkflowHistoryRecord;
+import com.example.workflow.persistence.spi.WorkflowState;
 import com.example.workflow.engine.WorkflowEngine;
 import com.example.workflow.engine.WorkflowExecutionService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,10 +17,19 @@ import java.util.Map;
 public class WorkflowEngineController {
     private final WorkflowEngine workflowEngine;
     private final WorkflowExecutionService workflowExecutionService;
+    private final UserContextProvider userContextProvider;
 
-    public WorkflowEngineController(WorkflowEngine workflowEngine, WorkflowExecutionService workflowExecutionService) {
+    public WorkflowEngineController(WorkflowEngine workflowEngine,
+                                    WorkflowExecutionService workflowExecutionService,
+                                    UserContextProvider userContextProvider) {
         this.workflowEngine = workflowEngine;
         this.workflowExecutionService = workflowExecutionService;
+        this.userContextProvider = userContextProvider;
+    }
+
+    @GetMapping("/session/me")
+    public SessionUserResponse currentUser() {
+        return new SessionUserResponse(userContextProvider.getCurrentUser());
     }
 
     @PostMapping("/start")
@@ -33,8 +43,9 @@ public class WorkflowEngineController {
     }
 
     @PostMapping("/{id}/rollback")
-    public WorkflowState rollback(@PathVariable("id") String id) {
-        return workflowEngine.rollbackWorkflow(id);
+    public WorkflowState rollback(@PathVariable("id") String id,
+                                  @RequestParam(value = "targetStepId", required = false) String targetStepId) {
+        return workflowEngine.rollbackWorkflow(id, targetStepId);
     }
 
     @GetMapping("/{id}")

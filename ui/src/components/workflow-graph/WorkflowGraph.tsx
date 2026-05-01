@@ -12,14 +12,12 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
   definition,
   history,
   currentStepId,
-  onStepSelect,
-  onRollbackStep
+  onStepSelect
 }: {
   definition: WorkflowDefinition;
   history: WorkflowHistoryRecord[];
   currentStepId?: string;
   onStepSelect?: (node: GraphNode) => void;
-  onRollbackStep?: (node: GraphNode) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>(currentStepId);
 
@@ -64,7 +62,6 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
               setSelectedId(n.id);
               onStepSelect?.(n);
             }}
-            onRollback={onRollbackStep}
           />
         ))}
       </svg>

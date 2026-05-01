@@ -47,7 +47,7 @@ public class JpaHistoryRepositoryAdapter implements HistoryRepository {
         List<WorkflowStepEntity> steps = stepRepository.findByInstanceIdOrderByCreatedAtAsc(instance.getId());
         for (int i = steps.size() - 1; i >= 0; i--) {
             WorkflowStepEntity step = steps.get(i);
-            if (step.getStepId().equals(stepId)) {
+            if (step.getStepId().equals(stepId) && !"ROLLED_BACK".equals(step.getStatus())) {
                 step.setStatus("ROLLED_BACK");
                 step.setUpdatedAt(Instant.now());
                 stepRepository.save(step);

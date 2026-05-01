@@ -75,16 +75,25 @@ public class WorkflowExecutionService implements WorkflowEngine {
     }
 
     @Override
-    public WorkflowState rollbackWorkflow(String workflowId) {
+    public WorkflowState rollbackWorkflow(String workflowId, String targetStepId) {
         WorkflowState current = workflowRepository.find(workflowId).orElseThrow();
         List<com.example.workflow.persistence.spi.WorkflowHistoryRecord> history = historyRepository.history(workflowId);
         if (history.isEmpty()) {
             return current;
         }
-        com.example.workflow.persistence.spi.WorkflowHistoryRecord last = history.get(history.size() - 1);
-        historyRepository.markRolledBack(workflowId, last.stepId());
-        String previousStep = history.size() > 1 ? history.get(history.size() - 2).stepId() : current.currentStep();
-        workflowRepository.updateState(workflowId, "RUNNING", previousStep, current.context());
+
+        int targetIdx = resolveRollbackTargetIndex(history, targetStepId);
+
+        if (targetIdx < 0) {
+            return current;
+        }
+
+        for (int i = history.size() - 1; i > targetIdx; i--) {
+            historyRepository.markRolledBack(workflowId, history.get(i).stepId());
+        }
+
+        String rollbackToStep = history.get(targetIdx).stepId();
+        workflowRepository.updateState(workflowId, "RUNNING", rollbackToStep, current.context());
         executeCurrent(workflowId);
         return getWorkflow(workflowId);
     }
@@ -194,5 +203,43 @@ public class WorkflowExecutionService implements WorkflowEngine {
         WorkflowDefinition def = definitions.computeIfAbsent(definitionId, definitionLoader::load);
         return def.steps().stream().filter(s -> s.id().equals(stepId)).findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Step " + stepId + " not found in definition " + definitionId));
+    }
+
+    /**
+     * History rows use granular statuses ({@code SYSTEM_COMPLETED}, {@code USER_WAITING}, {@code API_SUCCESS}, …),
+     * not a generic {@code COMPLETED}. Finds the newest applicable row index for rollback anchoring.
+     */
+    private int resolveRollbackTargetIndex(List<WorkflowHistoryRecord> history, String targetStepId) {
+        if (history.isEmpty()) {
+            return -1;
+        }
+        if (targetStepId != null && !targetStepId.isBlank()) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                WorkflowHistoryRecord record = history.get(i);
+                if (!targetStepId.equals(record.stepId())) {
+                    continue;
+                }
+                String st = record.status();
+                if ("ROLLED_BACK".equals(st) || isHistoryFailureTerminalStatus(st)) {
+                    continue;
+                }
+                return i;
+            }
+            return -1;
+        }
+        for (int i = history.size() - 1; i >= 0; i--) {
+            String st = history.get(i).status();
+            if (!"ROLLED_BACK".equals(st) && !isHistoryFailureTerminalStatus(st)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isHistoryFailureTerminalStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        return "FAILED".equals(status) || "API_FAILED".equals(status) || "DECISION_NO_MATCH".equals(status);
     }
 }

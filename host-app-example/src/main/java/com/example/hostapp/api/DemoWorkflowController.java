@@ -22,6 +22,6 @@ public class DemoWorkflowController {
 
     @PostMapping("/rollback/{workflowId}")
     public WorkflowState rollback(@PathVariable("workflowId") String workflowId) {
-        return workflowEngine.rollbackWorkflow(workflowId);
+        return workflowEngine.rollbackWorkflow(workflowId, null);
     }
 }

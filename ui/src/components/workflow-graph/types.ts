@@ -50,7 +50,7 @@ export function nodeStatusFromHistory(
   if (latest.status === "ROLLED_BACK") {
     return { status: "ROLLED_BACK", timestamp: latest.createdAt };
   }
-  if (latest.status === "FAILED") {
+  if (latest.status === "FAILED" || latest.status === "API_FAILED") {
     return { status: "FAILED", timestamp: latest.createdAt };
   }
   return { status: "COMPLETED", timestamp: latest.createdAt };

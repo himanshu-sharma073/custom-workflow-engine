@@ -1,0 +1,178 @@
+{
+  "id": "non-rating-workflow",
+  "version": 1,
+  "stages": [
+    "ANALYSIS",
+    "REVIEW",
+    "STEERING",
+    "ANALYST_SIGNOFF",
+    "REVIEWER_SIGNOFF",
+    "RELEASE"
+  ],
+  "steps": [
+    {
+      "id": "analysis",
+      "name": "Analysis",
+      "type": "user",
+      "stage": "ANALYSIS",
+      "assignment": {
+        "type": "USER",
+        "value": "${initiator}"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "notify-review-user"
+    },
+    {
+      "id": "notify-review-user",
+      "name": "Notify Review User",
+      "type": "api",
+      "stage": "ANALYSIS",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "notification": "review-assigned",
+        "source": "workflow-engine"
+      },
+      "next": "review"
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "type": "user",
+      "stage": "REVIEW",
+      "assignment": {
+        "type": "ROLE",
+        "value": "REVIEWER"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "steering-gateway"
+    },
+    {
+      "id": "steering-gateway",
+      "name": "If steering required",
+      "type": "decision",
+      "stage": "REVIEW",
+      "conditions": [
+        {
+          "expression": "steeringRequired == true",
+          "next": "steering"
+        },
+        {
+          "expression": "steeringRequired != true",
+          "next": "notify-analyst-signoff-user"
+        }
+      ]
+    },
+    {
+      "id": "steering",
+      "name": "Steering",
+      "type": "user",
+      "stage": "STEERING",
+      "assignment": {
+        "type": "ROLE",
+        "value": "MANAGER"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "notify-analyst-signoff-user"
+    },
+    {
+      "id": "notify-analyst-signoff-user",
+      "name": "Notify Analyst Sign Off User",
+      "type": "api",
+      "stage": "STEERING",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "notification": "analyst-signoff-due",
+        "source": "workflow-engine"
+      },
+      "next": "analyst-signoff"
+    },
+    {
+      "id": "analyst-signoff",
+      "name": "Analyst Sign Off",
+      "type": "user",
+      "stage": "ANALYST_SIGNOFF",
+      "assignment": {
+        "type": "ROLE",
+        "value": "ANALYST"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "notify-reviewer-signoff-user"
+    },
+    {
+      "id": "notify-reviewer-signoff-user",
+      "name": "Notify Reviewer Sign Off User",
+      "type": "api",
+      "stage": "ANALYST_SIGNOFF",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "notification": "reviewer-signoff-due",
+        "source": "workflow-engine"
+      },
+      "next": "reviewer-signoff"
+    },
+    {
+      "id": "reviewer-signoff",
+      "name": "Reviewer Sign Off",
+      "type": "user",
+      "stage": "REVIEWER_SIGNOFF",
+      "assignment": {
+        "type": "ROLE",
+        "value": "REVIEWER"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "notify-release"
+    },
+    {
+      "id": "notify-release",
+      "name": "Notify Release",
+      "type": "api",
+      "stage": "REVIEWER_SIGNOFF",
+      "method": "POST",
+      "url": "https://jsonplaceholder.typicode.com/posts",
+      "body": {
+        "notification": "release-ready",
+        "source": "workflow-engine"
+      },
+      "next": "release"
+    },
+    {
+      "id": "release",
+      "name": "Release",
+      "type": "user",
+      "stage": "RELEASE",
+      "assignment": {
+        "type": "ROLE",
+        "value": "ADMIN"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "name": "End Job",
+      "type": "end",
+      "stage": "RELEASE"
+    }
+  ]
+}

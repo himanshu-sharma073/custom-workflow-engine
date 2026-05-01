@@ -31,6 +31,32 @@ button.primary {
 }
 button.primary:hover { background: #1d4ed8; }
 
+.dashboard-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: min(260px, 42vw);
+}
+
+.dashboard-user-pill__icon {
+  font-size: 14px;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.dashboard-user-pill__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dashboard {
   max-width: 1800px;
   margin: 0 auto;
@@ -42,7 +68,7 @@ button.primary:hover { background: #1d4ed8; }
 .pageHeader {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -125,6 +151,79 @@ button.primary:hover { background: #1d4ed8; }
   border: 1px solid #bfdbfe;
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+/* Minimizable workflow runtime timeline (collapsed tab by default) */
+.rt-timeline {
+  margin-top: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.rt-timeline__tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rt-timeline__tab:hover {
+  background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+}
+
+.rt-timeline__tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rt-timeline__chevron {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  color: #64748b;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.rt-timeline__tab-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.rt-timeline__tab-hint {
+  white-space: nowrap;
+}
+
+.rt-timeline__pill {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.rt-timeline__body {
+  padding: 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .error {
@@ -210,6 +309,27 @@ textarea {
   stroke: #2563eb;
 }
 
+/* Current step must win over decision / type-specific fills (otherwise it looks like any other node). */
+.wg-node.wg-node-is-current {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.35));
+}
+
+.wg-node-decision.wg-node-current {
+  fill: #dbeafe;
+  stroke: #1d4ed8;
+}
+
+.wg-node-type-user.wg-node-current {
+  fill: #eff6ff;
+  stroke: #1d4ed8;
+}
+
+.wg-node-type-system.wg-node-current {
+  fill: #eef2ff;
+  stroke: #4338ca;
+}
+
 .wg-node-failed {
   fill: #fee2e2;
   stroke: #dc2626;
@@ -225,8 +345,63 @@ textarea {
   stroke: #64748b;
 }
 
+.wg-node-type-user {
+  stroke-dasharray: 6 3;
+}
+
+.wg-node-type-system {
+  stroke-dasharray: none;
+}
+
+.wg-node-type-user.wg-node-pending {
+  fill: #e0f2fe;
+  stroke: #0284c7;
+}
+
+.wg-node-type-system.wg-node-pending {
+  fill: #ede9fe;
+  stroke: #7c3aed;
+}
+
 .wg-node-decision {
   fill: #fef3c7;
+}
+
+.wg-node-type-glyph {
+  color: #475569;
+  pointer-events: none;
+}
+
+.wg-node-selected .wg-node-type-glyph {
+  color: #1e3a5f;
+}
+
+/* USER step: Font Awesome regular user in SVG foreignObject */
+.wg-step-user-fa-icon {
+  font-size: 46px;
+  line-height: 1;
+  color: #475569;
+}
+
+.wg-step-user-fa-icon--selected {
+  color: #1e40af;
+}
+
+.wg-step-user-fa-icon--current {
+  color: #1d4ed8;
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.55));
+}
+
+.wg-current-badge-disk {
+  fill: #1d4ed8;
+  stroke: #ffffff;
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 4px rgba(29, 78, 216, 0.45));
+}
+
+.wg-current-badge-symbol {
+  fill: #ffffff;
+  stroke: none;
 }
 
 .wg-node-title {
@@ -244,6 +419,11 @@ textarea {
   font-size: 14px;
   fill: #0f172a;
   font-weight: 700;
+}
+
+.wg-node-icon-current {
+  fill: #1d4ed8;
+  font-size: 17px;
 }
 
 .wg-node-action {
