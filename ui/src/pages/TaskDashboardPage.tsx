@@ -8,6 +8,7 @@ import {
   fetchWorkflow,
   fetchWorkflowHistory,
   fetchWorkflows,
+  navigateLogout,
   rollbackWorkflow,
   startWorkflow,
   Task,
@@ -153,6 +154,10 @@ export function TaskDashboardPage() {
     }
   };
 
+  const logout = () => {
+    navigateLogout();
+  };
+
   return (
     <div className="dashboard">
       <div className="pageHeader">
@@ -170,6 +175,7 @@ export function TaskDashboardPage() {
           <div style={{ display: "flex", gap: 8 }}>
             {selectedDefinition && <button onClick={() => setSelectedDefinition(null)}>Close DAG View</button>}
             <button className="primary" onClick={load}>Refresh</button>
+            <button onClick={logout}>Logout</button>
           </div>
         </div>
       </div>

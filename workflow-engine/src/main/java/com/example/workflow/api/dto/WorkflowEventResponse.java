@@ -1,5 +1,15 @@
 package com.example.workflow.api.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 
-public record WorkflowEventResponse(String eventType, String payload, Instant createdAt) {}
+@Schema(description = "Persisted audit row for a workflow event")
+public record WorkflowEventResponse(
+    @Schema(description = "Event type / name")
+    String eventType,
+    @Schema(description = "Serialized payload snapshot")
+    String payload,
+    @Schema(description = "UTC creation time")
+    Instant createdAt
+) {}

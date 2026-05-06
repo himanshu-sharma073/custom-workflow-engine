@@ -30,10 +30,13 @@ public class WorkflowEngineProperties {
     public static class Api {
         private boolean enabled = true;
         private String basePath = "/workflows";
+        private boolean insecureSsl = false;
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
         public String getBasePath() { return basePath; }
         public void setBasePath(String basePath) { this.basePath = basePath; }
+        public boolean isInsecureSsl() { return insecureSsl; }
+        public void setInsecureSsl(boolean insecureSsl) { this.insecureSsl = insecureSsl; }
     }
 
     public static class Ui {

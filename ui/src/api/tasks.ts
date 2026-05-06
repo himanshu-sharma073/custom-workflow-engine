@@ -79,6 +79,20 @@ export type WorkflowHistoryRecord = {
 const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL?.trim?.() || "";
 const base = `${apiBaseUrl}/workflows`;
 
+/** Spring Security logout; same prefix as workflows so dev proxy reaches the backend. */
+export function logoutEndpoint(): string {
+  return `${apiBaseUrl}/logout`;
+}
+
+/** Full navigation POST so Spring can return 302 and the browser follows (fetch + redirect differs from status / ok checks). */
+export function navigateLogout(): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = logoutEndpoint();
+  document.body.appendChild(form);
+  form.submit();
+}
+
 export type SessionUser = {
   userName: string;
 };

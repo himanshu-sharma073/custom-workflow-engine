@@ -4,20 +4,29 @@ import com.example.workflow.dsl.StepDefinition;
 import com.example.workflow.dsl.StepType;
 import com.example.workflow.autoconfigure.WorkflowEngineProperties;
 import com.jayway.jsonpath.JsonPath;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import javax.net.ssl.*;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.security.GeneralSecurityException;
+import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Map;
 
 @Component
 public class ApiStepHandler implements StepHandler {
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final WorkflowEngineProperties properties;
 
     public ApiStepHandler(WorkflowEngineProperties properties) {
         this.properties = properties;
+        this.restTemplate = properties.getApi().isInsecureSsl()
+            ? insecureSslRestTemplate()
+            : new RestTemplate();
     }
 
     @Override
@@ -67,5 +76,36 @@ public class ApiStepHandler implements StepHandler {
         }
         context.appendHistory(step, "API_FAILED");
         return StepExecutionResult.endState();
+    }
+
+    private RestTemplate insecureSslRestTemplate() {
+        try {
+            final SSLContext sslContext = SSLContext.getInstance("TLS");
+            final TrustManager[] trustAllManagers = new TrustManager[] { new X509TrustManager() {
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                @Override
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            } };
+            sslContext.init(null, trustAllManagers, new java.security.SecureRandom());
+            final SSLSocketFactory socketFactory = sslContext.getSocketFactory();
+            final HostnameVerifier allowAllHostnames = (host, session) -> true;
+
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+                @Override
+                protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+                    super.prepareConnection(connection, httpMethod);
+                    if (connection instanceof HttpsURLConnection https) {
+                        https.setSSLSocketFactory(socketFactory);
+                        https.setHostnameVerifier(allowAllHostnames);
+                    }
+                }
+            };
+            return new RestTemplate(factory);
+        } catch (GeneralSecurityException ex) {
+            throw new IllegalStateException("Failed to initialize insecure SSL RestTemplate", ex);
+        }
     }
 }
