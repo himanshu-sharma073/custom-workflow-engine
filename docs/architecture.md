@@ -156,6 +156,7 @@ Each task type is implemented through `StepHandler`.
 - `EVENT`: wait for correlation-based signal
 - `DELAY`: scheduler-based pause
 - `SCRIPT`: lightweight expression mutation
+- `SUB_WORKFLOW`: spawn a child workflow definition; parent may `WAITING` until the child completes—see `docs/api-reference.md` and `host-app-example/configs/workflows/onboarding-with-subworkflows.json`
 
 ```mermaid
 flowchart LR
@@ -167,6 +168,7 @@ flowchart LR
   registry --> evtH[EventStepHandler]
   registry --> dlyH[DelayStepHandler]
   registry --> scriptH[ScriptStepHandler]
+  registry --> subWfH[SubWorkflowStepHandler]
   apiH --> retry[RetryBackoffPolicy]
   apiH --> mapResp[JsonPathResponseMapping]
 ```

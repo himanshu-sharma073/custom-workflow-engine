@@ -16,7 +16,9 @@ class CachingWorkflowDefinitionLoaderTest {
         AtomicInteger counter = new AtomicInteger();
         WorkflowDefinitionLoader delegate = id -> {
             counter.incrementAndGet();
-            return new WorkflowDefinition(id, 1, List.of(new StepDefinition("s1", StepType.END, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
+            return new WorkflowDefinition(id, 1, List.of(new StepDefinition("s1", StepType.END, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null)));
         };
 
         WorkflowDefinitionLoader loader = new CachingWorkflowDefinitionLoader(delegate, true);

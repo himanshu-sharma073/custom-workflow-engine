@@ -29,6 +29,12 @@ export type WorkflowStep = {
   next?: string;
   action?: string;
   conditions?: DecisionCondition[];
+  /** When type is SUB_WORKFLOW: child definition id run from this step. */
+  subWorkflowDefinitionId?: string;
+  subWorkflowInput?: Record<string, unknown>;
+  subWorkflowIsolateContext?: boolean;
+  /** When set, child output context is stored under this key on the parent. */
+  subWorkflowOutputKey?: string;
 };
 
 export type WorkflowDefinition = {
@@ -63,7 +69,8 @@ export type WorkflowState = {
   workflowId: string;
   definitionId: string;
   status: string;
-  currentStep: string;
+  /** May be null when the instance has finished. */
+  currentStep?: string | null;
   context: Record<string, unknown>;
   updatedAt: string;
 };
@@ -75,6 +82,9 @@ export type WorkflowHistoryRecord = {
   payload: string;
   createdAt: string;
 };
+
+/** Parent instance context key while a child workflow is WAITING (matches backend). */
+export const ACTIVE_SUB_WORKFLOW_CONTEXT_KEY = "__swActiveChildWorkflowId";
 
 const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL?.trim?.() || "";
 const base = `${apiBaseUrl}/workflows`;

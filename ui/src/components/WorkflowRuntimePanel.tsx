@@ -79,6 +79,10 @@ export function WorkflowRuntimePanel({
     () => (history ?? []).filter((h) => h.status.startsWith("EVENT")).length,
     [history]
   );
+  const subWorkflowCount = useMemo(
+    () => (history ?? []).filter((h) => h.status.includes("SUB_WORKFLOW")).length,
+    [history]
+  );
 
   const timelineCount = timeline.length;
   const summaryEmpty = timelineCount === 0;
@@ -125,6 +129,7 @@ export function WorkflowRuntimePanel({
             <span className="pill">API steps: {apiCallCount}</span>
             <span className="pill">Delay waits: {delayCount}</span>
             <span className="pill">Event waits: {eventWaitCount}</span>
+            <span className="pill">Sub-workflow steps: {subWorkflowCount}</span>
             <span className="pill">Task audits: {auditEvents.length}</span>
           </div>
           {summaryEmpty ? (

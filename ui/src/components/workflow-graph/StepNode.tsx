@@ -29,16 +29,23 @@ export const StepNode = React.memo(function StepNode({
   node,
   history,
   selected,
-  onSelect
+  onSelect,
+  subWorkflowExpandable,
+  subWorkflowExpanded,
+  onSubWorkflowToggle
 }: {
   node: GraphNode;
   history: WorkflowHistoryRecord[];
   selected: boolean;
   onSelect: (node: GraphNode) => void;
+  /** When set, show expand/collapse control for SUB_WORKFLOW (click does not select the node). */
+  subWorkflowExpandable?: boolean;
+  subWorkflowExpanded?: boolean;
+  onSubWorkflowToggle?: (e: React.MouseEvent) => void;
 }) {
   const x = node.x - NODE_W / 2;
   const y = node.y - NODE_H / 2;
-  const record = [...history].reverse().find((h) => h.stepId === node.id);
+  const record = [...history].reverse().find((h) => h.stepId === node.step.id);
   const title = `${node.label} (${node.type})
 Status: ${node.status}${node.status === "CURRENT" ? " (workflow is here)" : ""}
 When: ${node.timestamp || "-"}
@@ -130,7 +137,15 @@ Payload: ${summarizePayload(record?.payload)}`;
         {node.label}
       </text>
       <text x={textX} y={y + 40} className="wg-node-subtitle">
-        {node.type}{node.stage ? ` · ${node.stage}` : ""}
+        {node.type}
+        {node.stage ? ` · ${node.stage}` : ""}
+        {node.step.subWorkflowDefinitionId
+          ? ` → ${
+              node.step.subWorkflowDefinitionId.length > 20
+                ? `${node.step.subWorkflowDefinitionId.slice(0, 18)}…`
+                : node.step.subWorkflowDefinitionId
+            }`
+          : ""}
       </text>
       <text
         x={x + NODE_W - 20}
@@ -139,6 +154,22 @@ Payload: ${summarizePayload(record?.payload)}`;
       >
         {statusIcon(node.status)}
       </text>
+      {subWorkflowExpandable ? (
+        <g
+          transform={`translate(${x + NODE_W - 22}, ${y + NODE_H - 16})`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSubWorkflowToggle?.(e);
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          <title>{subWorkflowExpanded ? "Hide nested workflow" : "Show nested workflow"}</title>
+          <rect x={-6} y={-12} width={24} height={20} fill="transparent" />
+          <text x={0} y={4} className="wg-nested-expand-icon">
+            {subWorkflowExpanded ? "▼" : "▶"}
+          </text>
+        </g>
+      ) : null}
     </g>
   );
 });

@@ -1,0 +1,36 @@
+{
+  "id": "onboarding-with-subworkflows",
+  "version": 1,
+  "stages": ["INIT", "KYC", "WRAP_UP"],
+  "steps": [
+    {
+      "id": "open-case",
+      "name": "Open onboarding case",
+      "type": "system",
+      "stage": "INIT",
+      "next": "run-kyc-subflow"
+    },
+    {
+      "id": "run-kyc-subflow",
+      "name": "Embedded KYC verification",
+      "type": "sub_workflow",
+      "stage": "KYC",
+      "subWorkflowDefinitionId": "kyc-verification-subflow",
+      "subWorkflowOutputKey": "kycResult",
+      "next": "finalize"
+    },
+    {
+      "id": "finalize",
+      "name": "Finalize after sub-workflow",
+      "type": "system",
+      "stage": "WRAP_UP",
+      "next": "parent-end"
+    },
+    {
+      "id": "parent-end",
+      "name": "Parent end",
+      "type": "end",
+      "stage": "WRAP_UP"
+    }
+  ]
+}

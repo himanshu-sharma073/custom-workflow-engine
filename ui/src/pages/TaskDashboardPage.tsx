@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  ACTIVE_SUB_WORKFLOW_CONTEXT_KEY,
   claimTask,
   fetchCurrentUser,
   fetchDefinition,
@@ -20,7 +21,7 @@ import { ApprovalPanel } from "../components/ApprovalPanel";
 import { ApprovalHistory } from "../components/ApprovalHistory";
 import { WorkflowRuntimePanel } from "../components/WorkflowRuntimePanel";
 import { WorkflowDag } from "../components/WorkflowDag";
-import { GraphNode, nodeStatusFromHistory } from "../components/workflow-graph/types";
+import { GraphNode, nodeStatusFromHistory, WorkflowGraphInstance } from "../components/workflow-graph/types";
 
 export function TaskDashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,6 +38,15 @@ export function TaskDashboardPage() {
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [startInputJson, setStartInputJson] = useState('{\n  "initiator": "user123"\n}');
   const [isStartingWorkflow, setIsStartingWorkflow] = useState(false);
+  const [activeSubWorkflowSnapshot, setActiveSubWorkflowSnapshot] = useState<{
+    currentStep?: string;
+    history: WorkflowHistoryRecord[];
+  } | null>(null);
+
+  const activeSubWorkflowId =
+    selectedWorkflow?.context && typeof selectedWorkflow.context[ACTIVE_SUB_WORKFLOW_CONTEXT_KEY] === "string"
+      ? (selectedWorkflow.context[ACTIVE_SUB_WORKFLOW_CONTEXT_KEY] as string)
+      : undefined;
 
   const load = async () => {
     try {
@@ -81,6 +91,69 @@ export function TaskDashboardPage() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!activeSubWorkflowId) {
+      setActiveSubWorkflowSnapshot(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [wf, hist] = await Promise.all([fetchWorkflow(activeSubWorkflowId), fetchWorkflowHistory(activeSubWorkflowId)]);
+        if (cancelled) return;
+        setActiveSubWorkflowSnapshot({ currentStep: wf.currentStep, history: hist });
+      } catch {
+        if (!cancelled) setActiveSubWorkflowSnapshot(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubWorkflowId]);
+
+  const definitionLookup = useMemo(() => new Map(definitions.map((d) => [d.id, d])), [definitions]);
+
+  /** Only bind instance history/current to the DAG when the open definition matches the inspected workflow (avoids stale COMPLETED on SUB_WORKFLOW). */
+  const definitionDagBinding = useMemo(() => {
+    if (!selectedDefinition) {
+      return {
+        history: [] as WorkflowHistoryRecord[],
+        currentStepId: undefined as string | undefined,
+        workflow: null as WorkflowGraphInstance
+      };
+    }
+    if (!selectedWorkflow || selectedWorkflow.definitionId !== selectedDefinition.id) {
+      return {
+        history: [] as WorkflowHistoryRecord[],
+        currentStepId: undefined as string | undefined,
+        workflow: null as WorkflowGraphInstance
+      };
+    }
+    return {
+      history: workflowHistory,
+      currentStepId: selectedWorkflow.currentStep ?? undefined,
+      workflow: {
+        status: selectedWorkflow.status,
+        currentStep: selectedWorkflow.currentStep,
+        definitionId: selectedWorkflow.definitionId
+      }
+    };
+  }, [selectedDefinition, selectedWorkflow, workflowHistory]);
+
+  const subWorkflowNestedRuntime = useMemo(() => {
+    if (!selectedWorkflow || !selectedDefinition || !activeSubWorkflowId || !activeSubWorkflowSnapshot) return null;
+    if (selectedDefinition.id !== selectedWorkflow.definitionId) return null;
+    const cur = selectedWorkflow.currentStep ?? undefined;
+    if (!cur) return null;
+    const step = selectedDefinition.steps.find((s) => s.id === cur);
+    if (!step || step.type.toLowerCase() !== "sub_workflow") return null;
+    return {
+      parentStepId: cur,
+      currentStepId: activeSubWorkflowSnapshot.currentStep,
+      history: activeSubWorkflowSnapshot.history
+    };
+  }, [selectedWorkflow, selectedDefinition, activeSubWorkflowId, activeSubWorkflowSnapshot]);
+
   const myTasks = useMemo(() => tasks.filter(t => !!t.claimedBy), [tasks]);
   const candidateTasks = useMemo(() => tasks.filter(t => !t.claimedBy), [tasks]);
 
@@ -100,16 +173,16 @@ export function TaskDashboardPage() {
   const completedRollbackSteps = useMemo(() => {
     if (!selectedWorkflow || !selectedDefinition) return [] as string[];
 
-    const cur = selectedWorkflow.currentStep;
+    const cur = definitionDagBinding.currentStepId;
     const items: string[] = [];
     for (const s of selectedDefinition.steps) {
-      const { status } = nodeStatusFromHistory(s.id, cur, workflowHistory);
+      const { status } = nodeStatusFromHistory(s.id, cur, definitionDagBinding.history, definitionDagBinding.workflow);
       if (status === "COMPLETED") {
         items.push(s.id);
       }
     }
     return items;
-  }, [selectedWorkflow, selectedDefinition, workflowHistory]);
+  }, [selectedWorkflow, selectedDefinition, definitionDagBinding]);
 
   useEffect(() => {
     if (completedRollbackSteps.length === 0) {
@@ -262,17 +335,43 @@ export function TaskDashboardPage() {
               </div>
               <WorkflowDag
                 definition={selectedDefinition}
-                currentStepId={selectedWorkflow?.currentStep}
-                history={workflowHistory}
+                currentStepId={definitionDagBinding.currentStepId}
+                history={definitionDagBinding.history}
+                workflow={definitionDagBinding.workflow ?? undefined}
+                definitionLookup={definitionLookup}
+                nestedRuntime={subWorkflowNestedRuntime}
                 onStepSelect={(node) => setSelectedGraphNode(node)}
               />
               {selectedGraphNode ? (
                 <div style={{ marginTop: 10, borderTop: "1px solid #dbeafe", paddingTop: 8 }}>
                   <div><strong>Selected Step:</strong> {selectedGraphNode.label}</div>
                   <div className="subtle">
-                    {selectedGraphNode.id} | {selectedGraphNode.type} | {selectedGraphNode.status}
+                    <span className="mono">{selectedGraphNode.step.id}</span>
+                    {selectedGraphNode.id !== selectedGraphNode.step.id ? (
+                      <span title="Internal graph node id (nested DAG)"> ({selectedGraphNode.id})</span>
+                    ) : null}{" "}
+                    | {selectedGraphNode.type} | {selectedGraphNode.status}
                     {selectedGraphNode.stage ? ` | ${selectedGraphNode.stage}` : ""}
                   </div>
+                  {(selectedGraphNode.step.subWorkflowDefinitionId || selectedGraphNode.step.subWorkflowOutputKey) ? (
+                    <div style={{ marginTop: 6, fontSize: 12 }} className="subtle">
+                      {selectedGraphNode.step.subWorkflowDefinitionId ? (
+                        <div>
+                          <strong>Sub definition:</strong>{" "}
+                          <span className="mono">{selectedGraphNode.step.subWorkflowDefinitionId}</span>
+                        </div>
+                      ) : null}
+                      {selectedGraphNode.step.subWorkflowOutputKey ? (
+                        <div style={{ marginTop: 4 }}>
+                          <strong>Output key:</strong>{" "}
+                          <span className="mono">{selectedGraphNode.step.subWorkflowOutputKey}</span>
+                        </div>
+                      ) : null}
+                      {selectedGraphNode.step.subWorkflowIsolateContext ? (
+                        <div style={{ marginTop: 4 }}>Isolated child context (no parent copy)</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -312,6 +411,34 @@ export function TaskDashboardPage() {
                   <div><strong>Current Step:</strong> {selectedWorkflow.currentStep || "-"}</div>
                 </div>
               </div>
+              {activeSubWorkflowId ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #e9d5ff",
+                    background: "#faf5ff",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 10
+                  }}
+                >
+                  <span>
+                    <strong>Active sub-workflow</strong>
+                    <span className="subtle" style={{ marginLeft: 8 }}>
+                      Parent is waiting on an embedded child instance.
+                    </span>
+                  </span>
+                  <span className="mono" style={{ fontSize: 12 }}>
+                    {activeSubWorkflowId}
+                  </span>
+                  <button type="button" onClick={() => openWorkflow(activeSubWorkflowId)}>
+                    Inspect child instance
+                  </button>
+                </div>
+              ) : null}
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <label htmlFor="rollbackTargetStep"><strong>Rollback to completed step:</strong></label>

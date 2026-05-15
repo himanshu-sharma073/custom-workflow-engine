@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Host App Workflow APIs - Sequence Pack",
-    "description": "Postman collection with ordered API sequences for system/API-heavy document workflow. Includes complete path and update/rework path.",
+    "description": "Postman sequences for host workflow APIs. Includes ratings document paths (A/B), **sub-workflow onboarding** (`onboarding-with-subworkflows` → `kyc-verification-subflow`), and utilities. Variables: parentDefinitionId, childDefinitionId, childWorkflowId (set when parent waits).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,6 +10,9 @@
     { "key": "password", "value": "password" },
     { "key": "definitionId", "value": "ratings-review-workflow" },
     { "key": "workflowId", "value": "" },
+    { "key": "childWorkflowId", "value": "" },
+    { "key": "parentDefinitionId", "value": "onboarding-with-subworkflows" },
+    { "key": "childDefinitionId", "value": "kyc-verification-subflow" },
     { "key": "taskId", "value": "" },
     { "key": "eventName", "value": "document-updated" },
     { "key": "correlationId", "value": "DOC-42" }
@@ -299,6 +302,148 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/workflows/{{workflowId}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Sub-workflow onboarding demo",
+      "description": "Parent definition `{{parentDefinitionId}}` invokes child `{{childDefinitionId}}`. Use user123/password (initiator). After start, `childWorkflowId` is captured from parent context.",
+      "item": [
+        {
+          "name": "SW1 GET definition — parent DSL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/definitions/{{parentDefinitionId}}"
+          }
+        },
+        {
+          "name": "SW2 GET definition — child DSL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/definitions/{{childDefinitionId}}"
+          }
+        },
+        {
+          "name": "SW3 START parent onboarding (captures ids)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initiator\": \"user123\"\n}"
+            },
+            "url": "{{baseUrl}}/workflows/start?definitionId={{parentDefinitionId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "if (body && body.workflowId) { pm.collectionVariables.set('workflowId', body.workflowId); }",
+                  "var ctx = body && body.context ? body.context : {};",
+                  "var cid = ctx.__swActiveChildWorkflowId;",
+                  "if (cid) { pm.collectionVariables.set('childWorkflowId', cid); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SW4 GET parent workflow",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "var cid = body && body.context && body.context.__swActiveChildWorkflowId;",
+                  "if (cid) { pm.collectionVariables.set('childWorkflowId', cid); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SW5 LIST tasks — pick task on child workflow",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "var childId = pm.collectionVariables.get('childWorkflowId');",
+                  "var tasks = Array.isArray(body) ? body : [];",
+                  "var hit = tasks.find(function (t) { return childId && t.workflowId === childId; }) || tasks.find(function (t) { return t.stepId === 'kyc-review'; }) || tasks[0];",
+                  "if (hit && hit.id) { pm.collectionVariables.set('taskId', hit.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SW6 Claim KYC task",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/claim"
+          }
+        },
+        {
+          "name": "SW7 Approve KYC task",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalType\": \"ANY\",\n  \"minApprovals\": 1,\n  \"input\": {\n    \"approved\": true\n  }\n}"
+            },
+            "url": "{{baseUrl}}/workflows/tasks/{{taskId}}/approve"
+          }
+        },
+        {
+          "name": "SW8 GET parent — COMPLETED + kycResult",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var body = pm.response.json();",
+                  "pm.test('parent nested output context', function () { pm.expect(body).to.have.property('context'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SW9 GET child workflow (completed)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{childWorkflowId}}"
+          }
+        },
+        {
+          "name": "SW10 GET parent history",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/workflows/{{workflowId}}/history"
           }
         }
       ]

@@ -27,8 +27,12 @@ class WorkflowExecutionServiceTest {
             id,
             1,
             List.of(
-                new StepDefinition("step1", StepType.SYSTEM, null, null, null, "end", null, null, null, null, null, null, null, null, null, null, null, null),
-                new StepDefinition("end", StepType.END, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+                new StepDefinition("step1", StepType.SYSTEM, null, null, null, "end",
+                    null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null),
+                new StepDefinition("end", StepType.END, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null)
             )
         );
 
@@ -63,6 +67,109 @@ class WorkflowExecutionServiceTest {
 
         Assertions.assertEquals("COMPLETED", current.status());
         Assertions.assertTrue(historyRepo.records.stream().anyMatch(r -> "SYSTEM_COMPLETED".equals(r.status())));
+    }
+
+    @Test
+    void runsNestedSubWorkflowAndMergesOutput() {
+        WorkflowDefinition child = new WorkflowDefinition(
+            "child-wf",
+            1,
+            List.of(systemStep("c1", "c-end"), end("c-end"))
+        );
+        WorkflowDefinition parent = new WorkflowDefinition(
+            "parent-wf",
+            1,
+            List.of(
+                systemStep("p1", "call-child"),
+                subWorkflowStep("call-child", "child-wf", "p-end", "nested"),
+                systemStep("p-end", "p-final"),
+                end("p-final")
+            )
+        );
+        WorkflowDefinitionLoader loader = id -> {
+            if ("parent-wf".equals(id)) {
+                return parent;
+            }
+            if ("child-wf".equals(id)) {
+                return child;
+            }
+            throw new IllegalArgumentException(id);
+        };
+
+        InMemoryWorkflowRepo workflowRepo = new InMemoryWorkflowRepo();
+        InMemoryHistoryRepo historyRepo = new InMemoryHistoryRepo();
+
+        StepHandler system = new StepHandler() {
+            @Override
+            public StepType supports() {
+                return StepType.SYSTEM;
+            }
+
+            @Override
+            public StepExecutionResult execute(StepDefinition step, StepExecutionContext context) {
+                context.variables().put("tick-" + step.id(), true);
+                context.appendHistory(step, "SYSTEM_COMPLETED");
+                return step.next() == null ? StepExecutionResult.endState() : StepExecutionResult.next(step.next());
+            }
+        };
+
+        TaskScheduler scheduler = (task, startTime) -> {
+            task.run();
+            return null;
+        };
+
+        final WorkflowExecutionService[] svcRef = new WorkflowExecutionService[1];
+        StepHandler sub = new StepHandler() {
+            @Override
+            public StepType supports() {
+                return StepType.SUB_WORKFLOW;
+            }
+
+            @Override
+            public StepExecutionResult execute(StepDefinition step, StepExecutionContext context) {
+                return svcRef[0].runSubWorkflowStep(step, context);
+            }
+        };
+
+        svcRef[0] = new WorkflowExecutionService(
+            loader,
+            workflowRepo,
+            historyRepo,
+            List.of(system, sub),
+            List.of(),
+            scheduler,
+            (CompensationHandler) (stp, ctx) -> {}
+        );
+
+        WorkflowState started = svcRef[0].startWorkflow("parent-wf", Map.of("x", "root"));
+        WorkflowState done = svcRef[0].getWorkflow(started.workflowId());
+
+        Assertions.assertEquals("COMPLETED", done.status());
+        Assertions.assertTrue(historyRepo.records.stream().anyMatch(r -> "SUB_WORKFLOW_COMPLETED".equals(r.status())));
+        Map<String, Object> ctx = done.context();
+        Assertions.assertTrue(ctx.containsKey("nested"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nested = (Map<String, Object>) ctx.get("nested");
+        Assertions.assertEquals(true, nested.get("tick-c1"));
+        Assertions.assertEquals("root", nested.get("x"));
+    }
+
+    private static StepDefinition systemStep(String id, String next) {
+        return new StepDefinition(id, StepType.SYSTEM, null, null, null, next,
+            null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null);
+    }
+
+    private static StepDefinition subWorkflowStep(String id, String definitionId, String next, String outputKey) {
+        return new StepDefinition(id, StepType.SUB_WORKFLOW, null, null, null, next,
+            null, null, null, null, null, null, null, null, null, null, null, null,
+            null, definitionId, null, null, outputKey);
+    }
+
+    private static StepDefinition end(String id) {
+        return new StepDefinition(id, StepType.END, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null);
     }
 
     private static class InMemoryWorkflowRepo implements WorkflowRepository {

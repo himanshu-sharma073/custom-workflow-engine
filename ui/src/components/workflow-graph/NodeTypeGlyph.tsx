@@ -112,6 +112,13 @@ export const NodeTypeGlyph = React.memo(function NodeTypeGlyph({
           d="M17.25 6.75L22 12l-4.75 5.25m-10.5 0L2 12l4.75-5.25M14.738 18.804L12 21.52l-.738-3.716M9.263 5.195L12 2.478l2.738 2.716"
         />
       ));
+    case "SUB_WORKFLOW":
+      return glyphFrame(ix, iy, scale, (
+        <>
+          <rect x="4" y="4" width="16" height="16" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.6" className={cls} />
+          <rect x="8.5" y="8.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.4" className={cls} />
+        </>
+      ));
     default:
       return glyphFrame(ix, iy, scale, (
         <>

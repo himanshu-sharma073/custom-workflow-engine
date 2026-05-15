@@ -5,6 +5,7 @@ import {
   GraphNode,
   nodeStatusFromHistory,
   toLabel,
+  WorkflowGraphInstance,
   WorkflowGraphModel
 } from "./types";
 
@@ -18,14 +19,15 @@ const OUTER_MARGIN = 72;
 
 type Position = { x: number; y: number };
 
-function buildEdges(definition: WorkflowDefinition): GraphEdge[] {
+function buildEdges(definition: WorkflowDefinition, nodeIdPrefix = ""): GraphEdge[] {
+  const pid = (id: string) => (nodeIdPrefix ? `${nodeIdPrefix}${id}` : id);
   const edges: GraphEdge[] = [];
   for (const step of definition.steps) {
     if (step.next) {
       edges.push({
-        id: `${step.id}->${step.next}`,
-        from: step.id,
-        to: step.next,
+        id: `${pid(step.id)}->${pid(step.next)}`,
+        from: pid(step.id),
+        to: pid(step.next),
         kind: "normal",
         isBranch: false
       });
@@ -35,9 +37,9 @@ function buildEdges(definition: WorkflowDefinition): GraphEdge[] {
       const lowered = label.toLowerCase();
       const kind = lowered.includes("true") ? "decisionTrue" : lowered.includes("false") ? "decisionFalse" : "normal";
       edges.push({
-        id: `${step.id}->${condition.next}:${idx}`,
-        from: step.id,
-        to: condition.next,
+        id: `${pid(step.id)}->${pid(condition.next)}:${idx}`,
+        from: pid(step.id),
+        to: pid(condition.next),
         kind,
         label,
         isBranch: true
@@ -111,19 +113,29 @@ function assignPositions(definition: WorkflowDefinition): Map<string, Position> 
   return positions;
 }
 
+export type BuildGraphOptions = {
+  /** Prefix graph node/edge ids so nested definitions never collide with the parent DAG. */
+  nodeIdPrefix?: string;
+  /** When set, WAITING/RUNNING + currentStep override misleading history for the active step (e.g. SUB_WORKFLOW). */
+  workflow?: WorkflowGraphInstance;
+};
+
 export function buildWorkflowGraphModel(
   definition: WorkflowDefinition,
   currentStepId: string | undefined,
-  history: WorkflowHistoryRecord[]
+  history: WorkflowHistoryRecord[],
+  options?: BuildGraphOptions
 ): WorkflowGraphModel {
-  const edges = buildEdges(definition);
+  const nodeIdPrefix = options?.nodeIdPrefix ?? "";
+  const edges = buildEdges(definition, nodeIdPrefix);
   const positions = assignPositions(definition);
 
+  const wf = options?.workflow ?? undefined;
   const rawNodes: GraphNode[] = definition.steps.map((step) => {
     const p = positions.get(step.id)!;
-    const state = nodeStatusFromHistory(step.id, currentStepId, history);
+    const state = nodeStatusFromHistory(step.id, currentStepId, history, wf);
     return {
-      id: step.id,
+      id: nodeIdPrefix ? `${nodeIdPrefix}${step.id}` : step.id,
       label: toLabel(step),
       type: step.type,
       stage: step.stage,

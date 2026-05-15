@@ -1,4 +1,4 @@
-import { WorkflowDefinition, WorkflowHistoryRecord, WorkflowStep } from "../../api/tasks";
+import { WorkflowDefinition, WorkflowHistoryRecord, WorkflowState, WorkflowStep } from "../../api/tasks";
 
 export type NodeStatus = "COMPLETED" | "CURRENT" | "FAILED" | "ROLLED_BACK" | "PENDING";
 
@@ -32,12 +32,21 @@ export type WorkflowGraphModel = {
   height: number;
 };
 
+/** Optional instance snapshot: when status is WAITING/RUNNING, currentStep wins over stale history for that step. */
+export type WorkflowGraphInstance = Pick<WorkflowState, "status" | "currentStep" | "definitionId"> | null;
+
 export function nodeStatusFromHistory(
   stepId: string,
   currentStepId: string | undefined,
-  history: WorkflowHistoryRecord[]
+  history: WorkflowHistoryRecord[],
+  workflow?: WorkflowGraphInstance
 ): { status: NodeStatus; timestamp?: string } {
-  if (currentStepId && currentStepId === stepId) {
+  const wfStep = workflow?.currentStep?.trim() || undefined;
+  const argStep = currentStepId?.trim() || undefined;
+  const onActivePointer =
+    (workflow && (workflow.status === "WAITING" || workflow.status === "RUNNING") && wfStep === stepId) ||
+    Boolean(argStep && argStep === stepId);
+  if (onActivePointer) {
     const latest = [...history].reverse().find((h) => h.stepId === stepId);
     return { status: "CURRENT", timestamp: latest?.createdAt };
   }
@@ -52,6 +61,9 @@ export function nodeStatusFromHistory(
   }
   if (latest.status === "FAILED" || latest.status === "API_FAILED") {
     return { status: "FAILED", timestamp: latest.createdAt };
+  }
+  if (latest.status === "SUB_WORKFLOW_WAITING") {
+    return { status: "CURRENT", timestamp: latest.createdAt };
   }
   return { status: "COMPLETED", timestamp: latest.createdAt };
 }

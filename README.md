@@ -21,6 +21,7 @@ Reusable, embeddable JSON-driven workflow engine for Spring Boot, delivered as a
 - `EVENT`
 - `DELAY`
 - `SCRIPT`
+- `SUB_WORKFLOW` (runs another catalog definition; optionally nests output via `subWorkflowOutputKey`)
 - `END`
 
 ## Quick Start
@@ -79,6 +80,23 @@ Note: UI calls backend APIs, so your browser session should use the same credent
 curl -u user123:password -X POST "http://localhost:8081/demo/workflows/start-sample"
 ```
 
+### Sub-workflow showcase (definitions on disk)
+
+| Definition id | Role |
+|---|---|
+| `onboarding-with-subworkflows` | Parent: runs embedded KYC; writes merged child output under `kycResult` in parent context when the child completes. |
+| `kyc-verification-subflow` | Child: one `USER` approval step (`${initiator}`); started only from a `SUB_WORKFLOW` step. |
+
+Example start:
+
+```bash
+curl -u user123:password -X POST "http://localhost:8081/workflows/start?definitionId=onboarding-with-subworkflows" \
+  -H "Content-Type: application/json" \
+  -d "{\"initiator\":\"user123\"}"
+```
+
+While the parent waits on the child, `GET /workflows/{parentId}` exposes `context.__swActiveChildWorkflowId` (inspect that id for tasks on the nested instance).
+
 ## Configuration Reference (`workflow.engine.*`)
 ```yaml
 workflow:
@@ -128,9 +146,10 @@ workflow:
 
 ## Postman Collection
 Import:
+
 - `docs/postman/host-app-workflow.postman_collection.json`
 
-Collection includes variables (`baseUrl`, `username`, `password`, `definitionId`, `workflowId`, `taskId`) and requests for all host app APIs.
+Variables cover `baseUrl`, auth, `definitionId` (defaults to `ratings-review-workflow`), `parentDefinitionId` / `childDefinitionId`, workflow and task ids, and `childWorkflowId` (filled when a parent is waiting on an embedded child). Folders include ratings sequences, utilities, and **“03 — Sub-workflow onboarding demo”** (`onboarding-with-subworkflows` + `kyc-verification-subflow`).
 
 ## Additional Docs
 - `docs/architecture.md`

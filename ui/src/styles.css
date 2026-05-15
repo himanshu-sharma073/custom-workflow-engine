@@ -363,6 +363,42 @@ textarea {
   stroke: #7c3aed;
 }
 
+.wg-node-type-sub_workflow {
+  stroke-dasharray: 4 2;
+}
+
+.wg-node-type-sub_workflow.wg-node-pending {
+  fill: #f3e8ff;
+  stroke: #9333ea;
+}
+
+.wg-node-type-sub_workflow.wg-node-current {
+  fill: #faf5ff;
+  stroke: #7e22ce;
+}
+
+.wg-nested-expand-icon {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #475569;
+  pointer-events: none;
+}
+
+.wg-nested-layer-bg {
+  fill: #f8fafc;
+  stroke: #cbd5e1;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.wg-nested-link {
+  stroke: #94a3b8;
+  stroke-width: 1.35;
+  stroke-dasharray: 5 4;
+  fill: none;
+  pointer-events: none;
+}
+
 .wg-node-decision {
   fill: #fef3c7;
 }

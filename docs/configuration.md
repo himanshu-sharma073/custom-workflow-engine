@@ -16,6 +16,8 @@
 - `workflow.engine.definition.path` (directory/base path)
 - `workflow.engine.definition.cache-enabled` (`true`/`false`)
 
+Sample host file directory includes **`onboarding-with-subworkflows`** (parent `SUB_WORKFLOW`) and **`kyc-verification-subflow`** (child); see also `ratings-review-workflow` for longer paths.
+
 ## Execution
 - `workflow.engine.execution.max-retries` (default `3`)
 - `workflow.engine.execution.retry-backoff-ms` (default `2000`)

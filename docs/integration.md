@@ -31,10 +31,12 @@ Provide `UserContextProvider` bean from host security context.
 ## 4) Supply workflow definitions
 - `file`: `<path>/<workflowId>.json`
 - `classpath`: `<path>/<workflowId>.json`
+- Each JSON file corresponds to `{definition.path}/{definitionId}.json`, e.g. `onboarding-with-subworkflows.json`, `kyc-verification-subflow.json`.
 
 ## 5) Start/resume/rollback through API
 Default path examples:
 - `POST /workflows/start?definitionId=document-update-approval`
+- `POST /workflows/start?definitionId=onboarding-with-subworkflows` (parent; embeds `kyc-verification-subflow` via `SUB_WORKFLOW`)
 - `POST /workflows/{id}/resume`
 - `POST /workflows/{id}/rollback`
 

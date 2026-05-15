@@ -1,0 +1,28 @@
+{
+  "id": "kyc-verification-subflow",
+  "version": 1,
+  "stages": ["KYC"],
+  "steps": [
+    {
+      "id": "kyc-review",
+      "name": "KYC review (sub-workflow)",
+      "type": "user",
+      "stage": "KYC",
+      "assignment": {
+        "type": "USER",
+        "value": "${initiator}"
+      },
+      "approval": {
+        "type": "ANY",
+        "minApprovals": 1
+      },
+      "next": "kyc-end"
+    },
+    {
+      "id": "kyc-end",
+      "name": "KYC complete",
+      "type": "end",
+      "stage": "KYC"
+    }
+  ]
+}

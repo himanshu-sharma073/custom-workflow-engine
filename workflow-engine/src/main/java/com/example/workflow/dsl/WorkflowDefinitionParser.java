@@ -49,6 +49,14 @@ public class WorkflowDefinitionParser {
                 && (step.approval().minApprovals() == null || step.approval().minApprovals() <= 0)) {
                 throw new IllegalArgumentException("MIN_APPROVAL requires minApprovals > 0");
             }
+            if (step.type() == StepType.SUB_WORKFLOW) {
+                if (step.subWorkflowDefinitionId() == null || step.subWorkflowDefinitionId().isBlank()) {
+                    throw new IllegalArgumentException("SUB_WORKFLOW step " + step.id() + " requires subWorkflowDefinitionId");
+                }
+                if (step.next() == null || step.next().isBlank()) {
+                    throw new IllegalArgumentException("SUB_WORKFLOW step " + step.id() + " requires next");
+                }
+            }
         }
     }
 }

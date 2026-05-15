@@ -22,5 +22,19 @@ public record StepDefinition(
     String correlationId,
     Long delayMs,
     String script,
-    CompensationSpec compensation
+    CompensationSpec compensation,
+    /** When {@code type == SUB_WORKFLOW}: catalog id of the definition to run. */
+    String subWorkflowDefinitionId,
+    /** Optional static input merged on top of the child seed context. */
+    Map<String, Object> subWorkflowInput,
+    /**
+     * When true, the child starts with only {@link #subWorkflowInput} (no copy of the parent context).
+     * When null/false, non-internal parent entries are copied into the child before applying {@link #subWorkflowInput}.
+     */
+    Boolean subWorkflowIsolateContext,
+    /**
+     * When set, the child's output context (sanitized) is stored under this key on the parent.
+     * When null, sanitized child outputs are merged at the root of the parent context.
+     */
+    String subWorkflowOutputKey
 ) {}

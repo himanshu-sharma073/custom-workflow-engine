@@ -3,6 +3,40 @@
 Base path is configurable via `workflow.engine.api.base-path` (default: `/workflows`).
 All endpoints require host-controlled security (HTTP Basic in sample host app).
 
+## Definitions catalogue
+
+### List definitions
+`GET /workflows/definitions`
+
+### Get definition DSL
+`GET /workflows/definitions/{definitionId}`
+
+Returned JSON follows the persisted workflow files (`id`, `version`, `steps`). Steps may include **`sub_workflow`**-specific fields (`subWorkflowDefinitionId`, `subWorkflowInput`, `subWorkflowIsolateContext`, `subWorkflowOutputKey`). Example parent step calling a child catalog definition:
+
+```json
+{
+  "id": "run-kyc-subflow",
+  "name": "Embedded KYC verification",
+  "type": "sub_workflow",
+  "stage": "KYC",
+  "subWorkflowDefinitionId": "kyc-verification-subflow",
+  "subWorkflowOutputKey": "kycResult",
+  "next": "finalize"
+}
+```
+
+### Showcase definition ids (`host-app-example/configs/workflows`)
+| definitionId | Purpose |
+|---|---|
+| `onboarding-with-subworkflows` | Parent workflow exercising `SUB_WORKFLOW`. |
+| `kyc-verification-subflow` | Child workflow referenced by `subWorkflowDefinitionId`. |
+
+### Parent vs child workflow instances
+
+Sub-workflows run as separate instances. When the parent is waiting on an embedded workflow, `GET /workflows/{parentId}` may include **`__swActiveChildWorkflowId`** in `context`; use `GET /workflows/{childId}`, task APIs, or history against that instance while the nested work executes.
+
+OpenAPI / Swagger UI on the sample host includes these routes (typically `/swagger-ui.html`).
+
 ## Workflow
 ### Start
 `POST /workflows/start?definitionId={definitionId}`
