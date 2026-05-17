@@ -3,6 +3,13 @@ import { WorkflowDefinition, WorkflowHistoryRecord } from "../api/tasks";
 import { WorkflowGraph } from "./workflow-graph/WorkflowGraph";
 import { GraphNode, WorkflowGraphInstance } from "./workflow-graph/types";
 
+export type NestedSubWorkflowRuntime = {
+  currentStepId?: string;
+  history: WorkflowHistoryRecord[];
+  childStatus?: string;
+  childDefinitionId: string;
+};
+
 export function WorkflowDag({
   definition,
   currentStepId,
@@ -10,7 +17,8 @@ export function WorkflowDag({
   workflow,
   onStepSelect,
   definitionLookup,
-  nestedRuntime
+  nestedRuntimeByParentStep,
+  autoExpandSubWorkflowStepIds
 }: {
   definition: WorkflowDefinition;
   currentStepId?: string;
@@ -18,11 +26,8 @@ export function WorkflowDag({
   workflow?: WorkflowGraphInstance;
   onStepSelect?: (node: GraphNode) => void;
   definitionLookup?: Map<string, WorkflowDefinition>;
-  nestedRuntime?: {
-    parentStepId: string;
-    currentStepId?: string;
-    history: WorkflowHistoryRecord[];
-  } | null;
+  nestedRuntimeByParentStep?: Record<string, NestedSubWorkflowRuntime>;
+  autoExpandSubWorkflowStepIds?: string[];
 }) {
   return (
     <WorkflowGraph
@@ -32,7 +37,8 @@ export function WorkflowDag({
       workflow={workflow}
       onStepSelect={onStepSelect}
       definitionLookup={definitionLookup}
-      nestedRuntime={nestedRuntime ?? null}
+      nestedRuntimeByParentStep={nestedRuntimeByParentStep}
+      autoExpandSubWorkflowStepIds={autoExpandSubWorkflowStepIds}
     />
   );
 }

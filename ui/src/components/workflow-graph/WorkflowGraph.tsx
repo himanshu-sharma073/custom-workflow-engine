@@ -33,7 +33,8 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
   workflow,
   onStepSelect,
   definitionLookup,
-  nestedRuntime,
+  nestedRuntimeByParentStep,
+  autoExpandSubWorkflowStepIds,
   allowSubWorkflowExpand = true
 }: {
   definition: WorkflowDefinition;
@@ -43,11 +44,13 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
   workflow?: WorkflowGraphInstance;
   onStepSelect?: (node: GraphNode) => void;
   definitionLookup?: Map<string, WorkflowDefinition>;
-  nestedRuntime?: {
-    parentStepId: string;
-    currentStepId?: string;
-    history: WorkflowHistoryRecord[];
-  } | null;
+  /** Per parent SUB_WORKFLOW step: child DAG status/history (refreshed with parent inspect). */
+  nestedRuntimeByParentStep?: Record<
+    string,
+    { currentStepId?: string; history: WorkflowHistoryRecord[]; childStatus?: string; childDefinitionId: string }
+  >;
+  /** Parent step ids to expand on load (e.g. active or recently completed embed). */
+  autoExpandSubWorkflowStepIds?: string[];
   allowSubWorkflowExpand?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>(currentStepId);
@@ -56,6 +59,15 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
   useEffect(() => {
     setExpandedSwSteps([]);
   }, [definition.id]);
+
+  useEffect(() => {
+    if (!autoExpandSubWorkflowStepIds?.length) return;
+    setExpandedSwSteps((prev) => {
+      const next = new Set(prev);
+      autoExpandSubWorkflowStepIds.forEach((id) => next.add(id));
+      return [...next];
+    });
+  }, [definition.id, autoExpandSubWorkflowStepIds?.join("|")]);
 
   const model = useMemo(
     () => buildWorkflowGraphModel(definition, currentStepId, history, { workflow }),
@@ -86,12 +98,17 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
       if (!childDef) continue;
 
       const prefix = `nested:${parentStepId}:`;
-      const rt =
-        nestedRuntime && nestedRuntime.parentStepId === parentStepId
-          ? nestedRuntime
-          : { parentStepId, currentStepId: undefined as string | undefined, history: [] as WorkflowHistoryRecord[] };
-
-      const childModel = buildWorkflowGraphModel(childDef, rt.currentStepId, rt.history, { nodeIdPrefix: prefix });
+      const rt = nestedRuntimeByParentStep?.[parentStepId];
+      const childModel = buildWorkflowGraphModel(childDef, rt?.currentStepId, rt?.history ?? [], {
+        nodeIdPrefix: prefix,
+        workflow: rt
+          ? {
+              status: rt.childStatus ?? "RUNNING",
+              currentStep: rt.currentStepId,
+              definitionId: rt.childDefinitionId
+            }
+          : undefined
+      });
 
       let ox = Math.max(OUTER, parentNode.x - childModel.width / 2);
       let oy = parentNode.y + NODE_H / 2 + NEST_GAP;
@@ -114,7 +131,7 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
       layers.push({ parentStepId, ox, oy, model: childModel });
     }
     return layers;
-  }, [model, definition, definitionLookup, expandedSwSteps, nestedRuntime, byId]);
+  }, [model, definition, definitionLookup, expandedSwSteps, nestedRuntimeByParentStep, byId]);
 
   const canvasSize = useMemo(() => {
     let w = model.width;
@@ -197,9 +214,7 @@ export const WorkflowGraph = React.memo(function WorkflowGraph({
                 <StepNode
                   key={node.id}
                   node={node}
-                  history={
-                    nestedRuntime && nestedRuntime.parentStepId === layer.parentStepId ? nestedRuntime.history : []
-                  }
+                  history={nestedRuntimeByParentStep?.[layer.parentStepId]?.history ?? []}
                   selected={selectedId === node.id}
                   onSelect={(n) => {
                     setSelectedId(n.id);

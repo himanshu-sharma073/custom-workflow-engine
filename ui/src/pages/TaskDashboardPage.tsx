@@ -22,6 +22,11 @@ import { ApprovalHistory } from "../components/ApprovalHistory";
 import { WorkflowRuntimePanel } from "../components/WorkflowRuntimePanel";
 import { WorkflowDag } from "../components/WorkflowDag";
 import { GraphNode, nodeStatusFromHistory, WorkflowGraphInstance } from "../components/workflow-graph/types";
+import {
+  fetchSubWorkflowSnapshots,
+  shouldPollSubWorkflowSnapshots,
+  SubWorkflowSnapshot
+} from "../lib/subWorkflowBinding";
 
 export function TaskDashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -38,15 +43,30 @@ export function TaskDashboardPage() {
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [startInputJson, setStartInputJson] = useState('{\n  "initiator": "user123"\n}');
   const [isStartingWorkflow, setIsStartingWorkflow] = useState(false);
-  const [activeSubWorkflowSnapshot, setActiveSubWorkflowSnapshot] = useState<{
-    currentStep?: string;
-    history: WorkflowHistoryRecord[];
-  } | null>(null);
+  const [subWorkflowSnapshots, setSubWorkflowSnapshots] = useState<Record<string, SubWorkflowSnapshot>>({});
 
   const activeSubWorkflowId =
     selectedWorkflow?.context && typeof selectedWorkflow.context[ACTIVE_SUB_WORKFLOW_CONTEXT_KEY] === "string"
       ? (selectedWorkflow.context[ACTIVE_SUB_WORKFLOW_CONTEXT_KEY] as string)
       : undefined;
+
+  const refreshSelectedWorkflowDetail = async (
+    workflowId: string,
+    definitionForSnapshots?: WorkflowDefinition | null
+  ) => {
+    const freshWorkflow = await fetchWorkflow(workflowId);
+    const history = await fetchWorkflowHistory(freshWorkflow.workflowId);
+    setSelectedWorkflow(freshWorkflow);
+    setWorkflowHistory(history);
+
+    let def = definitionForSnapshots;
+    if (!def || def.id !== freshWorkflow.definitionId) {
+      def = await fetchDefinition(freshWorkflow.definitionId);
+      setSelectedDefinition(def);
+    }
+    setSubWorkflowSnapshots(await fetchSubWorkflowSnapshots(freshWorkflow, def, history));
+    return freshWorkflow;
+  };
 
   const load = async () => {
     try {
@@ -70,15 +90,9 @@ export function TaskDashboardPage() {
       setDefinitions(definitionData);
 
       if (selectedWorkflow) {
-        const freshWorkflow = await fetchWorkflow(selectedWorkflow.workflowId);
-        setSelectedWorkflow(freshWorkflow);
-
-        const history = await fetchWorkflowHistory(freshWorkflow.workflowId);
-        setWorkflowHistory(history);
-
-        if (!selectedDefinition || selectedDefinition.id !== freshWorkflow.definitionId) {
-          setSelectedDefinition(await fetchDefinition(freshWorkflow.definitionId));
-        }
+        await refreshSelectedWorkflowDetail(selectedWorkflow.workflowId, selectedDefinition);
+      } else {
+        setSubWorkflowSnapshots({});
       }
 
       if (selectedDefinition && !selectedWorkflow) {
@@ -91,25 +105,14 @@ export function TaskDashboardPage() {
 
   useEffect(() => { load(); }, []);
 
+  const pollSubWorkflows = shouldPollSubWorkflowSnapshots(selectedWorkflow, subWorkflowSnapshots);
   useEffect(() => {
-    if (!activeSubWorkflowId) {
-      setActiveSubWorkflowSnapshot(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const [wf, hist] = await Promise.all([fetchWorkflow(activeSubWorkflowId), fetchWorkflowHistory(activeSubWorkflowId)]);
-        if (cancelled) return;
-        setActiveSubWorkflowSnapshot({ currentStep: wf.currentStep, history: hist });
-      } catch {
-        if (!cancelled) setActiveSubWorkflowSnapshot(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSubWorkflowId]);
+    if (!pollSubWorkflows || !selectedWorkflow) return;
+    const timer = window.setInterval(() => {
+      refreshSelectedWorkflowDetail(selectedWorkflow.workflowId, selectedDefinition).catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [pollSubWorkflows, selectedWorkflow?.workflowId, selectedDefinition?.id]);
 
   const definitionLookup = useMemo(() => new Map(definitions.map((d) => [d.id, d])), [definitions]);
 
@@ -140,19 +143,35 @@ export function TaskDashboardPage() {
     };
   }, [selectedDefinition, selectedWorkflow, workflowHistory]);
 
-  const subWorkflowNestedRuntime = useMemo(() => {
-    if (!selectedWorkflow || !selectedDefinition || !activeSubWorkflowId || !activeSubWorkflowSnapshot) return null;
-    if (selectedDefinition.id !== selectedWorkflow.definitionId) return null;
-    const cur = selectedWorkflow.currentStep ?? undefined;
-    if (!cur) return null;
-    const step = selectedDefinition.steps.find((s) => s.id === cur);
-    if (!step || step.type.toLowerCase() !== "sub_workflow") return null;
-    return {
-      parentStepId: cur,
-      currentStepId: activeSubWorkflowSnapshot.currentStep,
-      history: activeSubWorkflowSnapshot.history
-    };
-  }, [selectedWorkflow, selectedDefinition, activeSubWorkflowId, activeSubWorkflowSnapshot]);
+  const nestedRuntimeByParentStep = useMemo(() => {
+    if (!selectedDefinition || !selectedWorkflow || selectedDefinition.id !== selectedWorkflow.definitionId) {
+      return undefined;
+    }
+    const map: Record<
+      string,
+      { currentStepId?: string; history: WorkflowHistoryRecord[]; childStatus?: string; childDefinitionId: string }
+    > = {};
+    for (const step of selectedDefinition.steps) {
+      if (step.type.toLowerCase() !== "sub_workflow" || !step.subWorkflowDefinitionId) continue;
+      const snap = subWorkflowSnapshots[step.id];
+      if (!snap) continue;
+      map[step.id] = {
+        currentStepId: snap.currentStep,
+        history: snap.history,
+        childStatus: snap.childStatus,
+        childDefinitionId: step.subWorkflowDefinitionId
+      };
+    }
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [selectedWorkflow, selectedDefinition, subWorkflowSnapshots]);
+
+  const autoExpandSubWorkflowStepIds = useMemo(() => {
+    if (!nestedRuntimeByParentStep) return [] as string[];
+    if (activeSubWorkflowId && selectedWorkflow?.currentStep) {
+      return [selectedWorkflow.currentStep];
+    }
+    return Object.keys(nestedRuntimeByParentStep);
+  }, [nestedRuntimeByParentStep, activeSubWorkflowId, selectedWorkflow?.currentStep]);
 
   const myTasks = useMemo(() => tasks.filter(t => !!t.claimedBy), [tasks]);
   const candidateTasks = useMemo(() => tasks.filter(t => !t.claimedBy), [tasks]);
@@ -194,9 +213,9 @@ export function TaskDashboardPage() {
 
   const openWorkflow = async (workflowId: string) => {
     const workflow = await fetchWorkflow(workflowId);
-    setSelectedWorkflow(workflow);
-    setSelectedDefinition(await fetchDefinition(workflow.definitionId));
-    setWorkflowHistory(await fetchWorkflowHistory(workflow.workflowId));
+    const def = await fetchDefinition(workflow.definitionId);
+    setSelectedDefinition(def);
+    await refreshSelectedWorkflowDetail(workflowId, def);
   };
 
   const startSelectedDefinition = async () => {
@@ -283,6 +302,7 @@ export function TaskDashboardPage() {
                     onClick={async () => {
                       setSelectedWorkflow(null);
                       setWorkflowHistory([]);
+                      setSubWorkflowSnapshots({});
                       setSelectedGraphNode(null);
                       setSelectedDefinition(await fetchDefinition(d.id));
                     }}
@@ -339,7 +359,8 @@ export function TaskDashboardPage() {
                 history={definitionDagBinding.history}
                 workflow={definitionDagBinding.workflow ?? undefined}
                 definitionLookup={definitionLookup}
-                nestedRuntime={subWorkflowNestedRuntime}
+                nestedRuntimeByParentStep={nestedRuntimeByParentStep}
+                autoExpandSubWorkflowStepIds={autoExpandSubWorkflowStepIds}
                 onStepSelect={(node) => setSelectedGraphNode(node)}
               />
               {selectedGraphNode ? (
